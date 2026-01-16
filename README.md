@@ -10,13 +10,15 @@ go build -o slack-mcp ./cmd/slack-mcp
 
 ## Configuration
 
-Add to your Claude Code settings (`~/.claude/settings.json` or project `.claude/settings.json`):
+Add to your Claude Code config (`~/.claude.json`):
 
 ```json
 {
   "mcpServers": {
     "slack": {
+      "type": "stdio",
       "command": "/path/to/slack-mcp",
+      "args": [],
       "env": {
         "SLACK_TOKEN": "xoxc-your-token-here",
         "SLACK_COOKIE": "xoxd-your-cookie-here"

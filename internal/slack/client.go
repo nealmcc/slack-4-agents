@@ -5,16 +5,31 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 )
 
+// FileRef describes a file written by ResponseWriter
+type FileRef struct {
+	Path  string `json:"path"`
+	Name  string `json:"name"`
+	Bytes int64  `json:"bytes"`
+	Lines int    `json:"lines"`
+}
+
+// ResponseWriter writes large response data to a file and returns a reference
+type ResponseWriter interface {
+	WriteJSON(name string, data any) (FileRef, error)
+}
+
 type Client struct {
 	api       *slack.Client
 	channelID map[string]string // cache: name -> ID
 	logger    *zap.Logger
+	responses ResponseWriter
 }
 
 func NewClient(logger *zap.Logger) (*Client, error) {
@@ -37,17 +52,25 @@ func NewClient(logger *zap.Logger) (*Client, error) {
 
 	api := slack.New(token, opts...)
 
+	// Directory for response files
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+	outputDir := filepath.Join(homeDir, ".claude", "slack-mcp", "cache")
+
 	logger.Info("Slack client initialized successfully")
 
 	return &Client{
 		api:       api,
 		channelID: make(map[string]string),
 		logger:    logger,
+		responses: NewFileResponseWriter(outputDir),
 	}, nil
 }
 
 // newClientWithAPI creates a client with an existing Slack API client (for testing)
-func newClientWithAPI(api *slack.Client, logger *zap.Logger) *Client {
+func newClientWithAPI(api *slack.Client, logger *zap.Logger, responses ResponseWriter) *Client {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -55,6 +78,7 @@ func newClientWithAPI(api *slack.Client, logger *zap.Logger) *Client {
 		api:       api,
 		channelID: make(map[string]string),
 		logger:    logger,
+		responses: responses,
 	}
 }
 

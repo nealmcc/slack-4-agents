@@ -67,18 +67,23 @@ func initLogger() *zap.Logger {
 	encoderConfig.TimeKey = "timestamp"
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
-	// Create log file in ~/.claude/slack-mcp.log
+	// Create base directory ~/.claude/slack-mcp/ and subdirectories
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatalf("Failed to get home directory: %v", err)
 	}
-	logFilePath := filepath.Join(homeDir, ".claude", "slack-mcp.log")
+	baseDir := filepath.Join(homeDir, ".claude", "slack-mcp")
+	cacheDir := filepath.Join(baseDir, "cache")
 
-	// Ensure directory exists
-	logDir := filepath.Dir(logFilePath)
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		log.Fatalf("Failed to create log directory: %v", err)
+	// Ensure directories exist
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		log.Fatalf("Failed to create base directory: %v", err)
 	}
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		log.Fatalf("Failed to create cache directory: %v", err)
+	}
+
+	logFilePath := filepath.Join(baseDir, "slack-mcp.log")
 
 	// Open log file
 	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

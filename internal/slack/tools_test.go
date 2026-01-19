@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/slack-go/slack"
 )
 
 // Helper to create a test client with mocked HTTP server
-func newTestClient(t *testing.T, mock *mockSlackServer) (*Client, *testLogger) {
+func newTestClient(t *testing.T, mock *mockSlackServer) (*Client, *testLogger, string) {
 	t.Helper()
 
 	// Create a Slack client that points to our mock server
@@ -18,8 +19,15 @@ func newTestClient(t *testing.T, mock *mockSlackServer) (*Client, *testLogger) {
 		slack.OptionAPIURL(mock.server.URL+"/"),
 	)
 
+	// Create temp directory for response files
+	outputDir, err := os.MkdirTemp("", "slack-mcp-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+
 	logger := newTestLogger()
-	return newClientWithAPI(api, logger.Logger), logger
+	responses := NewFileResponseWriter(outputDir)
+	return newClientWithAPI(api, logger.Logger, responses), logger, outputDir
 }
 
 func TestListChannels(t *testing.T) {
@@ -58,8 +66,9 @@ func TestListChannels(t *testing.T) {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	client, logger := newTestClient(t, mock)
+	client, logger, cacheDir := newTestClient(t, mock)
 	_ = logger // Can be used for log assertions
+	defer os.RemoveAll(cacheDir)
 
 	// Test the ListChannels tool
 	ctx := context.Background()
@@ -72,20 +81,65 @@ func TestListChannels(t *testing.T) {
 		t.Fatalf("ListChannels failed: %v", err)
 	}
 
-	if len(output.Channels) != 2 {
-		t.Errorf("Expected 2 channels, got %d", len(output.Channels))
+	if output.TotalCount != 2 {
+		t.Errorf("Expected 2 channels, got %d", output.TotalCount)
 	}
 
-	if output.Channels[0].Name != "general" {
-		t.Errorf("Expected first channel to be 'general', got '%s'", output.Channels[0].Name)
+	if output.FirstChannel == nil {
+		t.Fatal("Expected first channel to be set")
 	}
 
-	if output.Channels[0].ID != "C123456789" {
-		t.Errorf("Expected first channel ID to be 'C123456789', got '%s'", output.Channels[0].ID)
+	if output.FirstChannel.Name != "general" {
+		t.Errorf("Expected first channel to be 'general', got '%s'", output.FirstChannel.Name)
 	}
 
-	if output.Channels[0].MemberCount != 100 {
-		t.Errorf("Expected first channel member count to be 100, got %d", output.Channels[0].MemberCount)
+	if output.FirstChannel.ID != "C123456789" {
+		t.Errorf("Expected first channel ID to be 'C123456789', got '%s'", output.FirstChannel.ID)
+	}
+
+	if output.FirstChannel.MemberCount != 100 {
+		t.Errorf("Expected first channel member count to be 100, got %d", output.FirstChannel.MemberCount)
+	}
+
+	if output.LastChannel == nil {
+		t.Fatal("Expected last channel to be set")
+	}
+
+	if output.LastChannel.Name != "random" {
+		t.Errorf("Expected last channel to be 'random', got '%s'", output.LastChannel.Name)
+	}
+
+	// Verify FileRef metadata
+	if output.File.Path == "" {
+		t.Error("Expected file path to be set")
+	}
+	if output.File.Name == "" {
+		t.Error("Expected file name to be set")
+	}
+	if output.File.Bytes == 0 {
+		t.Error("Expected file bytes to be non-zero")
+	}
+	if output.File.Lines == 0 {
+		t.Error("Expected file lines to be non-zero")
+	}
+
+	// Verify response file was created and contains expected data
+	data, err := os.ReadFile(output.File.Path)
+	if err != nil {
+		t.Fatalf("Failed to read response file: %v", err)
+	}
+
+	if int64(len(data)) != output.File.Bytes {
+		t.Errorf("File size mismatch: got %d bytes, FileRef says %d", len(data), output.File.Bytes)
+	}
+
+	var channels []ChannelInfo
+	if err := json.Unmarshal(data, &channels); err != nil {
+		t.Fatalf("Failed to unmarshal response file: %v", err)
+	}
+
+	if len(channels) != 2 {
+		t.Errorf("Expected 2 channels in response file, got %d", len(channels))
 	}
 }
 
@@ -158,8 +212,9 @@ func TestReadHistory(t *testing.T) {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	client, logger := newTestClient(t, mock)
+	client, logger, cacheDir := newTestClient(t, mock)
 	_ = logger // Can be used for log assertions
+	defer os.RemoveAll(cacheDir)
 
 	// Test the ReadHistory tool with channel ID
 	ctx := context.Background()
@@ -218,8 +273,9 @@ func TestGetUser(t *testing.T) {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	client, logger := newTestClient(t, mock)
+	client, logger, cacheDir := newTestClient(t, mock)
 	_ = logger // Can be used for log assertions
+	defer os.RemoveAll(cacheDir)
 
 	// Test the GetUser tool
 	ctx := context.Background()
@@ -276,8 +332,9 @@ func TestGetPermalink(t *testing.T) {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	client, logger := newTestClient(t, mock)
+	client, logger, cacheDir := newTestClient(t, mock)
 	_ = logger // Can be used for log assertions
+	defer os.RemoveAll(cacheDir)
 
 	// Test the GetPermalink tool
 	ctx := context.Background()

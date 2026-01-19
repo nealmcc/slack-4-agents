@@ -28,13 +28,17 @@ type ChannelInfo struct {
 	IsArchived  bool   `json:"is_archived"`
 }
 
-// ListChannelsOutput contains the list of channels
+// ListChannelsOutput contains a summary and file reference (to save tokens)
 type ListChannelsOutput struct {
-	Channels   []ChannelInfo `json:"channels"`
-	NextCursor string        `json:"next_cursor,omitempty"`
+	File         FileRef      `json:"file"`
+	TotalCount   int          `json:"total_count"`
+	FirstChannel *ChannelInfo `json:"first_channel,omitempty"`
+	LastChannel  *ChannelInfo `json:"last_channel,omitempty"`
+	NextCursor   string       `json:"next_cursor,omitempty"`
 }
 
 // ListChannels lists channels the user has access to
+// Results are written to a cache file and a summary is returned to save tokens
 func (c *Client) ListChannels(ctx context.Context, req *mcp.CallToolRequest, input ListChannelsInput) (*mcp.CallToolResult, ListChannelsOutput, error) {
 	types := []string{"public_channel", "private_channel"}
 	if input.Types != "" {
@@ -60,13 +64,10 @@ func (c *Client) ListChannels(ctx context.Context, req *mcp.CallToolRequest, inp
 		return nil, ListChannelsOutput{}, fmt.Errorf("failed to list channels: %w", err)
 	}
 
-	output := ListChannelsOutput{
-		Channels:   make([]ChannelInfo, 0, len(channels)),
-		NextCursor: cursor,
-	}
-
+	// Convert to ChannelInfo slice
+	channelInfos := make([]ChannelInfo, 0, len(channels))
 	for _, ch := range channels {
-		output.Channels = append(output.Channels, ChannelInfo{
+		channelInfos = append(channelInfos, ChannelInfo{
 			ID:          ch.ID,
 			Name:        ch.Name,
 			Topic:       ch.Topic.Value,
@@ -75,6 +76,24 @@ func (c *Client) ListChannels(ctx context.Context, req *mcp.CallToolRequest, inp
 			IsPrivate:   ch.IsPrivate,
 			IsArchived:  ch.IsArchived,
 		})
+	}
+
+	// Write full results to file
+	fileRef, err := c.responses.WriteJSON("channels", channelInfos)
+	if err != nil {
+		return nil, ListChannelsOutput{}, fmt.Errorf("failed to write response: %w", err)
+	}
+
+	// Build summary output
+	output := ListChannelsOutput{
+		File:       fileRef,
+		TotalCount: len(channelInfos),
+		NextCursor: cursor,
+	}
+
+	if len(channelInfos) > 0 {
+		output.FirstChannel = &channelInfos[0]
+		output.LastChannel = &channelInfos[len(channelInfos)-1]
 	}
 
 	return nil, output, nil

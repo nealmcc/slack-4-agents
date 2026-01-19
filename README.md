@@ -82,9 +82,21 @@ The server uses structured logging (zap) with configurable log levels. Control v
 - **Error**: Authentication failures, API errors
 
 **Log output:**
-- Logs are written to both stderr and `~/.claude/slack-mcp.log`
+- Logs are written to both stderr and `~/.claude/slack-mcp/slack-mcp.log`
 - Format: JSON with ISO8601 timestamps
 - The log file is appended to, not rotated (manual cleanup needed if it grows large)
+
+### Data Directory
+
+The server creates `~/.claude/slack-mcp/` on startup with the following structure:
+
+```
+~/.claude/slack-mcp/
+├── slack-mcp.log      # Server logs
+└── cache/             # Tool output files (channel lists, etc.)
+```
+
+Some tools write their output to files in the cache directory and return a summary with a file reference. This reduces token usage when working with large result sets (e.g., paginating through hundreds of channels).
 
 ## Available Tools
 

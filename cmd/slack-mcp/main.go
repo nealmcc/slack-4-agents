@@ -13,14 +13,26 @@ import (
 )
 
 func main() {
+	// Determine working directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("Failed to get home directory: %v", err)
+	}
+	workDir := filepath.Join(homeDir, ".claude", "slack-mcp")
+
 	// Initialize logger
-	logger := initLogger()
+	logger := initLogger(workDir)
 	defer logger.Sync()
 
 	logger.Info("Starting Slack MCP server")
 
 	// Create Slack client
-	client, err := slackclient.NewClient(logger)
+	cfg := slackclient.Config{
+		Token:   os.Getenv("SLACK_TOKEN"),
+		Cookie:  os.Getenv("SLACK_COOKIE"),
+		WorkDir: workDir,
+	}
+	client, err := slackclient.NewClient(cfg, logger)
 	if err != nil {
 		logger.Fatal("Failed to create Slack client", zap.Error(err))
 	}
@@ -46,7 +58,7 @@ func main() {
 }
 
 // initLogger creates a zap logger that writes to both stderr and a file
-func initLogger() *zap.Logger {
+func initLogger(workDir string) *zap.Logger {
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
 		logLevel = "info"
@@ -67,23 +79,16 @@ func initLogger() *zap.Logger {
 	encoderConfig.TimeKey = "timestamp"
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
-	// Create base directory ~/.claude/slack-mcp/ and subdirectories
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatalf("Failed to get home directory: %v", err)
-	}
-	baseDir := filepath.Join(homeDir, ".claude", "slack-mcp")
-	cacheDir := filepath.Join(baseDir, "cache")
-
 	// Ensure directories exist
-	if err := os.MkdirAll(baseDir, 0755); err != nil {
-		log.Fatalf("Failed to create base directory: %v", err)
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		log.Fatalf("Failed to create work directory: %v", err)
 	}
+	cacheDir := filepath.Join(workDir, "cache")
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		log.Fatalf("Failed to create cache directory: %v", err)
 	}
 
-	logFilePath := filepath.Join(baseDir, "slack-mcp.log")
+	logFilePath := filepath.Join(workDir, "slack-mcp.log")
 
 	// Open log file
 	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

@@ -4,13 +4,19 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 )
+
+// Config holds configuration for the Slack client
+type Config struct {
+	Token   string // Slack API token (required)
+	Cookie  string // Slack cookie for xoxc token auth (optional)
+	WorkDir string // Working directory for response files
+}
 
 // FileRef describes a file written by ResponseWriter
 type FileRef struct {
@@ -32,32 +38,24 @@ type Client struct {
 	responses ResponseWriter
 }
 
-func NewClient(logger *zap.Logger) (*Client, error) {
-	token := os.Getenv("SLACK_TOKEN")
-	if token == "" {
-		logger.Error("SLACK_TOKEN environment variable not set")
-		return nil, fmt.Errorf("SLACK_TOKEN environment variable required")
+func NewClient(cfg Config, logger *zap.Logger) (*Client, error) {
+	if cfg.Token == "" {
+		return nil, fmt.Errorf("slack token is required")
 	}
 
 	opts := []slack.Option{}
 
-	// Support xoxc tokens with cookie authentication
-	if cookie := os.Getenv("SLACK_COOKIE"); cookie != "" {
+	if cfg.Cookie != "" {
 		logger.Info("Using cookie authentication for Slack client")
 		httpClient := &http.Client{
-			Transport: newCookieTransport(cookie, logger),
+			Transport: newCookieTransport(cfg.Cookie, logger),
 		}
 		opts = append(opts, slack.OptionHTTPClient(httpClient))
 	}
 
-	api := slack.New(token, opts...)
+	api := slack.New(cfg.Token, opts...)
 
-	// Directory for response files
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
-	}
-	outputDir := filepath.Join(homeDir, ".claude", "slack-mcp", "cache")
+	outputDir := filepath.Join(cfg.WorkDir, "cache")
 
 	logger.Info("Slack client initialized successfully")
 

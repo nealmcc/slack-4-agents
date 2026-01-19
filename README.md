@@ -39,7 +39,7 @@ The server supports two authentication methods:
 
 #### Getting browser tokens
 
-1. Open Slack in your browser and sign in
+1. Open `<workspace>.slack.com` in your browser and sign in
 2. Open Developer Tools (F12) → Application → Cookies
 3. Find the `d` cookie value (starts with `xoxd-`) → use as `SLACK_COOKIE`
 4. In the Console tab, run: `JSON.parse(localStorage.localConfig_v2).teams[Object.keys(JSON.parse(localStorage.localConfig_v2).teams)[0]].token`

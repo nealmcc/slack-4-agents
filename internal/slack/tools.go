@@ -330,6 +330,86 @@ func (c *Client) GetPermalink(ctx context.Context, req *mcp.CallToolRequest, inp
 	}, nil
 }
 
+// ReadThreadInput defines input for reading thread replies
+type ReadThreadInput struct {
+	Channel   string `json:"channel" jsonschema:"Channel ID (e.g., C1234567890)"`
+	Timestamp string `json:"timestamp" jsonschema:"Thread parent message timestamp (e.g., 1234567890.123456)"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"Number of replies to fetch (default 100, max 1000)"`
+	Cursor    string `json:"cursor,omitempty" jsonschema:"Pagination cursor for fetching more replies"`
+}
+
+// ReadThreadOutput contains thread replies
+type ReadThreadOutput struct {
+	ChannelID       string        `json:"channel_id"`
+	ThreadTimestamp string        `json:"thread_ts"`
+	Messages        []MessageInfo `json:"messages"`
+	HasMore         bool          `json:"has_more"`
+	NextCursor      string        `json:"next_cursor,omitempty"`
+}
+
+// ReadThread reads all replies in a thread
+func (c *Client) ReadThread(ctx context.Context, req *mcp.CallToolRequest, input ReadThreadInput) (*mcp.CallToolResult, ReadThreadOutput, error) {
+	channelID, err := c.ResolveChannelID(ctx, input.Channel)
+	if err != nil {
+		return nil, ReadThreadOutput{}, err
+	}
+
+	limit := 100
+	if input.Limit > 0 && input.Limit <= 1000 {
+		limit = input.Limit
+	}
+
+	params := &slack.GetConversationRepliesParameters{
+		ChannelID: channelID,
+		Timestamp: input.Timestamp,
+		Limit:     limit,
+		Cursor:    input.Cursor,
+	}
+
+	messages, hasMore, nextCursor, err := c.api.GetConversationRepliesContext(ctx, params)
+	if err != nil {
+		return nil, ReadThreadOutput{}, fmt.Errorf("failed to get thread replies: %w", err)
+	}
+
+	output := ReadThreadOutput{
+		ChannelID:       channelID,
+		ThreadTimestamp: input.Timestamp,
+		Messages:        make([]MessageInfo, 0, len(messages)),
+		HasMore:         hasMore,
+		NextCursor:      nextCursor,
+	}
+
+	// Collect user IDs to fetch names
+	userIDs := make(map[string]bool)
+	for _, msg := range messages {
+		if msg.User != "" {
+			userIDs[msg.User] = true
+		}
+	}
+
+	// Fetch user names
+	userNames := make(map[string]string)
+	for userID := range userIDs {
+		user, err := c.api.GetUserInfoContext(ctx, userID)
+		if err == nil {
+			userNames[userID] = user.Name
+		}
+	}
+
+	for _, msg := range messages {
+		output.Messages = append(output.Messages, MessageInfo{
+			Timestamp:       msg.Timestamp,
+			User:            msg.User,
+			UserName:        userNames[msg.User],
+			Text:            msg.Text,
+			ThreadTimestamp: msg.ThreadTimestamp,
+			ReplyCount:      msg.ReplyCount,
+		})
+	}
+
+	return nil, output, nil
+}
+
 // RegisterTools registers all Slack tools with the MCP server
 func (c *Client) RegisterTools(server *mcp.Server) {
 	mcp.AddTool(server, &mcp.Tool{
@@ -356,6 +436,11 @@ func (c *Client) RegisterTools(server *mcp.Server) {
 		Name:        "slack_get_permalink",
 		Description: "Get a permanent link (URL) to a specific Slack message. Useful for sharing or referencing messages.",
 	}, c.GetPermalink)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "slack_read_thread",
+		Description: "Read all replies in a Slack thread. Use the thread parent's timestamp from slack_read_history (messages with reply_count > 0).",
+	}, c.ReadThread)
 }
 
 // formatTimestamp converts a Slack timestamp to a readable format

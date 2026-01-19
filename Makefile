@@ -5,7 +5,7 @@ BINARY_NAME=slack-mcp
 # Main package path
 MAIN_PATH=./cmd/slack-mcp
 # Install location
-INSTALL_PATH=$(HOME)/.local/bin
+INSTALL_PATH=$(HOME)/bin
 
 # Go commands
 GOCMD=go
@@ -46,11 +46,12 @@ test:
 	$(GOTEST) -v ./...
 
 # Run tests with coverage
-test-coverage:
+cover:
 	@echo "Running tests with coverage..."
 	$(GOTEST) -v -coverprofile=coverage.out ./...
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
+	open coverage.html
 
 # Run go vet
 vet:
@@ -89,7 +90,7 @@ help:
 	@echo "  make build-release  - Build optimized binary"
 	@echo "  make install        - Install binary to ~/.local/bin"
 	@echo "  make test           - Run tests"
-	@echo "  make test-coverage  - Run tests with coverage report"
+	@echo "  make cover          - Run tests with coverage report"
 	@echo "  make vet            - Run go vet"
 	@echo "  make fmt            - Format code"
 	@echo "  make fmt-check      - Check if code is formatted"

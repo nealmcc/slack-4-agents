@@ -46,6 +46,18 @@ func NewClient(logger *zap.Logger) (*Client, error) {
 	}, nil
 }
 
+// newClientWithAPI creates a client with an existing Slack API client (for testing)
+func newClientWithAPI(api *slack.Client, logger *zap.Logger) *Client {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+	return &Client{
+		api:       api,
+		channelID: make(map[string]string),
+		logger:    logger,
+	}
+}
+
 // isChannelID checks if a string looks like a Slack channel ID
 // Channel IDs are uppercase alphanumeric strings starting with C, D, or G
 // and are typically 9-11 characters long

@@ -107,7 +107,7 @@ type ReadHistoryOutput struct {
 
 // ReadHistory reads message history from a channel
 func (c *Client) ReadHistory(ctx context.Context, req *mcp.CallToolRequest, input ReadHistoryInput) (*mcp.CallToolResult, ReadHistoryOutput, error) {
-	channelID, err := c.ResolveChannelID(ctx, input.Channel)
+	channelID, err := c.GetChannelID(ctx, input.Channel)
 	if err != nil {
 		return nil, ReadHistoryOutput{}, err
 	}
@@ -310,7 +310,7 @@ type GetPermalinkOutput struct {
 
 // GetPermalink gets a permalink to a specific message
 func (c *Client) GetPermalink(ctx context.Context, req *mcp.CallToolRequest, input GetPermalinkInput) (*mcp.CallToolResult, GetPermalinkOutput, error) {
-	channelID, err := c.ResolveChannelID(ctx, input.Channel)
+	channelID, err := c.GetChannelID(ctx, input.Channel)
 	if err != nil {
 		return nil, GetPermalinkOutput{}, err
 	}
@@ -349,7 +349,7 @@ type ReadThreadOutput struct {
 
 // ReadThread reads all replies in a thread
 func (c *Client) ReadThread(ctx context.Context, req *mcp.CallToolRequest, input ReadThreadInput) (*mcp.CallToolResult, ReadThreadOutput, error) {
-	channelID, err := c.ResolveChannelID(ctx, input.Channel)
+	channelID, err := c.GetChannelID(ctx, input.Channel)
 	if err != nil {
 		return nil, ReadThreadOutput{}, err
 	}

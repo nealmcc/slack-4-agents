@@ -45,6 +45,47 @@ The server supports two authentication methods:
 4. In the Console tab, run: `JSON.parse(localStorage.localConfig_v2).teams[Object.keys(JSON.parse(localStorage.localConfig_v2).teams)[0]].token`
 5. Copy the token (starts with `xoxc-`) → use as `SLACK_TOKEN`
 
+### Logging
+
+The server uses structured logging (zap) with configurable log levels. Control verbosity with the `LOG_LEVEL` environment variable:
+
+```json
+{
+  "mcpServers": {
+    "slack": {
+      "type": "stdio",
+      "command": "/path/to/slack-mcp",
+      "args": [],
+      "env": {
+        "SLACK_TOKEN": "xoxc-your-token-here",
+        "SLACK_COOKIE": "xoxd-your-cookie-here",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+**Available log levels:**
+
+| Level | Description | Use Case |
+|-------|-------------|----------|
+| `debug` | Verbose logging including cache hits, HTTP requests, page details | Troubleshooting and development |
+| `info` | Normal operational logging (default) | Production use |
+| `warn` | Warnings and errors only | Minimal logging |
+| `error` | Errors only | Critical issues only |
+
+**What gets logged:**
+- **Debug**: Cache lookups, API calls, pagination details
+- **Info**: Client initialization, channel searches, rate limit retries
+- **Warn**: Rate limits, channels not found
+- **Error**: Authentication failures, API errors
+
+**Log output:**
+- Logs are written to both stderr and `~/.claude/slack-mcp.log`
+- Format: JSON with ISO8601 timestamps
+- The log file is appended to, not rotated (manual cleanup needed if it grows large)
+
 ## Available Tools
 
 | Tool | Description |
@@ -81,11 +122,25 @@ For bot/user OAuth tokens, you'll need these scopes:
 
 ```bash
 # Build
-go build -o slack-mcp ./cmd/slack-mcp
+make build
 
-# Test MCP protocol
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | SLACK_TOKEN=fake ./slack-mcp
+# Build with optimizations
+make build-release
+
+# Run tests
+make test
+
+# Format code
+make fmt
+
+# Run all checks (fmt, vet, test)
+make check
+
+# Test MCP protocol with debug logging
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | LOG_LEVEL=debug SLACK_TOKEN=fake ./slack-mcp
 ```
+
+Run `make help` to see all available targets.
 
 ## License
 

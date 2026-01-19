@@ -8,16 +8,19 @@ import (
 	"strings"
 
 	"github.com/slack-go/slack"
+	"go.uber.org/zap"
 )
 
 type Client struct {
 	api       *slack.Client
 	channelID map[string]string // cache: name -> ID
+	logger    *zap.Logger
 }
 
-func NewClient() (*Client, error) {
+func NewClient(logger *zap.Logger) (*Client, error) {
 	token := os.Getenv("SLACK_TOKEN")
 	if token == "" {
+		logger.Error("SLACK_TOKEN environment variable not set")
 		return nil, fmt.Errorf("SLACK_TOKEN environment variable required")
 	}
 
@@ -25,17 +28,21 @@ func NewClient() (*Client, error) {
 
 	// Support xoxc tokens with cookie authentication
 	if cookie := os.Getenv("SLACK_COOKIE"); cookie != "" {
+		logger.Info("Using cookie authentication for Slack client")
 		httpClient := &http.Client{
-			Transport: newCookieTransport(cookie),
+			Transport: newCookieTransport(cookie, logger),
 		}
 		opts = append(opts, slack.OptionHTTPClient(httpClient))
 	}
 
 	api := slack.New(token, opts...)
 
+	logger.Info("Slack client initialized successfully")
+
 	return &Client{
 		api:       api,
 		channelID: make(map[string]string),
+		logger:    logger,
 	}, nil
 }
 
@@ -68,14 +75,21 @@ func isChannelID(s string) bool {
 func (c *Client) GetChannelID(ctx context.Context, channelOrName string) (string, error) {
 	// If it's already an ID, validate it exists using conversations API
 	if isChannelID(channelOrName) {
+		c.logger.Debug("Validating channel ID", zap.String("channel_id", channelOrName))
 		channel, err := c.api.GetConversationInfoContext(ctx, &slack.GetConversationInfoInput{
 			ChannelID: channelOrName,
 		})
 		if err != nil {
+			c.logger.Error("Failed to validate channel ID",
+				zap.String("channel_id", channelOrName),
+				zap.Error(err))
 			return "", fmt.Errorf("invalid channel ID: %w", err)
 		}
 		// Cache the name -> ID mapping for future lookups
 		c.channelID[strings.ToLower(channel.Name)] = channel.ID
+		c.logger.Debug("Channel ID validated and cached",
+			zap.String("channel_id", channel.ID),
+			zap.String("channel_name", channel.Name))
 		return channel.ID, nil
 	}
 
@@ -99,8 +113,14 @@ func (c *Client) findChannelID(ctx context.Context, name string) (string, error)
 
 	// Check cache
 	if id, ok := c.channelID[name]; ok {
+		c.logger.Debug("Channel found in cache",
+			zap.String("channel_name", name),
+			zap.String("channel_id", id))
 		return id, nil
 	}
+
+	c.logger.Info("Channel not in cache, starting pagination",
+		zap.String("channel_name", name))
 
 	// Create channels for communication between goroutines
 	pages := make(chan channelPage, 1) // Buffer allows fetcher to send while processor works
@@ -142,20 +162,41 @@ func (c *Client) findChannelID(ctx context.Context, name string) (string, error)
 	}()
 
 	// Process pages as they arrive
+	pageCount := 0
+	channelsProcessed := 0
 	for page := range pages {
 		if page.err != nil {
+			c.logger.Error("Failed to list channels",
+				zap.String("channel_name", name),
+				zap.Error(page.err))
 			return "", fmt.Errorf("failed to list channels: %w", page.err)
 		}
+
+		pageCount++
+		channelsProcessed += len(page.channels)
+		c.logger.Debug("Processing channel page",
+			zap.Int("page_number", pageCount),
+			zap.Int("channels_in_page", len(page.channels)),
+			zap.Int("total_processed", channelsProcessed))
 
 		// Add all channels from this page to cache and check for target
 		for _, ch := range page.channels {
 			c.channelID[ch.Name] = ch.ID
 			if ch.Name == name {
 				cancel() // Stop the fetcher goroutine
+				c.logger.Info("Channel found",
+					zap.String("channel_name", name),
+					zap.String("channel_id", ch.ID),
+					zap.Int("pages_searched", pageCount),
+					zap.Int("channels_processed", channelsProcessed))
 				return ch.ID, nil
 			}
 		}
 	}
 
+	c.logger.Warn("Channel not found after pagination",
+		zap.String("channel_name", name),
+		zap.Int("pages_searched", pageCount),
+		zap.Int("channels_processed", channelsProcessed))
 	return "", fmt.Errorf("channel not found: %s", name)
 }

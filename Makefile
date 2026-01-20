@@ -18,13 +18,13 @@ GOMOD=$(GOCMD) mod
 # Build flags
 LDFLAGS=-ldflags "-s -w"
 
-.PHONY: all build install clean test vet fmt tidy help
+.PHONY: all build install clean test vet fmt tidy generate help
 
 # Default target
 all: build
 
 # Build the binary
-build:
+build: generate
 	@echo "Building $(BINARY_NAME)..."
 	$(GOBUILD) -o $(BINARY_NAME) $(MAIN_PATH)
 
@@ -45,10 +45,11 @@ test:
 	@echo "Running tests..."
 	$(GOTEST) -v ./...
 
-# Run tests with coverage
+# Run tests with coverage (excluding mock files)
 cover:
 	@echo "Running tests with coverage..."
-	$(GOTEST) -v -coverprofile=coverage.out ./...
+	$(GOTEST) -v -coverprofile=coverage.raw.out ./...
+	@grep -v '_mocks' coverage.raw.out > coverage.out
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 	open coverage.html
@@ -73,11 +74,16 @@ tidy:
 	@echo "Tidying dependencies..."
 	$(GOMOD) tidy
 
+# Generate mocks
+generate:
+	@echo "Generating mocks..."
+	$(GOCMD) generate ./...
+
 # Clean build artifacts
 clean:
 	@echo "Cleaning..."
 	@rm -f $(BINARY_NAME)
-	@rm -f coverage.out coverage.html
+	@rm -f coverage.out coverage.raw.out coverage.html
 	@echo "Clean complete"
 
 # Run all checks (fmt, vet, test)
@@ -95,6 +101,7 @@ help:
 	@echo "  make fmt            - Format code"
 	@echo "  make fmt-check      - Check if code is formatted"
 	@echo "  make tidy           - Tidy dependencies"
+	@echo "  make generate       - Generate mocks"
 	@echo "  make check          - Run fmt-check, vet, and test"
 	@echo "  make clean          - Remove build artifacts"
 	@echo "  make help           - Show this help message"

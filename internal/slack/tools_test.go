@@ -66,11 +66,10 @@ func TestListChannels(t *testing.T) {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	client, logger, cacheDir := newTestClient(t, mock)
-	_ = logger // Can be used for log assertions
-	defer os.RemoveAll(cacheDir)
+	client, logger, responsesDir := newTestClient(t, mock)
+	_ = logger
+	defer os.RemoveAll(responsesDir)
 
-	// Test the ListChannels tool
 	ctx := context.Background()
 	input := ListChannelsInput{
 		Limit: 10,
@@ -82,55 +81,55 @@ func TestListChannels(t *testing.T) {
 	}
 
 	if output.TotalCount != 2 {
-		t.Errorf("Expected 2 channels, got %d", output.TotalCount)
+		t.Errorf("TotalCount: got %d, want 2", output.TotalCount)
 	}
 
 	if output.FirstChannel == nil {
-		t.Fatal("Expected first channel to be set")
+		t.Fatal("FirstChannel: got nil, want non-nil")
 	}
 
 	if output.FirstChannel.Name != "general" {
-		t.Errorf("Expected first channel to be 'general', got '%s'", output.FirstChannel.Name)
+		t.Errorf("FirstChannel.Name: got %q, want %q", output.FirstChannel.Name, "general")
 	}
 
 	if output.FirstChannel.ID != "C123456789" {
-		t.Errorf("Expected first channel ID to be 'C123456789', got '%s'", output.FirstChannel.ID)
+		t.Errorf("FirstChannel.ID: got %q, want %q", output.FirstChannel.ID, "C123456789")
 	}
 
 	if output.FirstChannel.MemberCount != 100 {
-		t.Errorf("Expected first channel member count to be 100, got %d", output.FirstChannel.MemberCount)
+		t.Errorf("FirstChannel.MemberCount: got %d, want 100", output.FirstChannel.MemberCount)
 	}
 
 	if output.LastChannel == nil {
-		t.Fatal("Expected last channel to be set")
+		t.Fatal("LastChannel: got nil, want non-nil")
 	}
 
 	if output.LastChannel.Name != "random" {
-		t.Errorf("Expected last channel to be 'random', got '%s'", output.LastChannel.Name)
+		t.Errorf("LastChannel.Name: got %q, want %q", output.LastChannel.Name, "random")
 	}
 
 	// Verify FileRef metadata
 	if output.File.Path == "" {
-		t.Error("Expected file path to be set")
+		t.Error("File.Path: got empty, want non-empty")
 	}
 	if output.File.Name == "" {
-		t.Error("Expected file name to be set")
+		t.Error("File.Name: got empty, want non-empty")
 	}
 	if output.File.Bytes == 0 {
-		t.Error("Expected file bytes to be non-zero")
+		t.Error("File.Bytes: got 0, want non-zero")
 	}
 	if output.File.Lines == 0 {
-		t.Error("Expected file lines to be non-zero")
+		t.Error("File.Lines: got 0, want non-zero")
 	}
 
-	// Verify response file was created and contains expected data
+	// Verify response file was created and contains correct data
 	data, err := os.ReadFile(output.File.Path)
 	if err != nil {
 		t.Fatalf("Failed to read response file: %v", err)
 	}
 
 	if int64(len(data)) != output.File.Bytes {
-		t.Errorf("File size mismatch: got %d bytes, FileRef says %d", len(data), output.File.Bytes)
+		t.Errorf("File.Bytes: got %d, want %d", output.File.Bytes, len(data))
 	}
 
 	var channels []ChannelInfo
@@ -139,7 +138,7 @@ func TestListChannels(t *testing.T) {
 	}
 
 	if len(channels) != 2 {
-		t.Errorf("Expected 2 channels in response file, got %d", len(channels))
+		t.Errorf("channels in response file: got %d, want 2", len(channels))
 	}
 }
 
@@ -188,7 +187,6 @@ func TestReadHistory(t *testing.T) {
 
 	// Mock users.info (for user name lookup)
 	mock.addHandler("/users.info", func(w http.ResponseWriter, r *http.Request) {
-		// Parse form data for POST requests (Slack API uses POST with form data)
 		r.ParseForm()
 		userID := r.FormValue("user")
 		if userID == "" {
@@ -212,11 +210,10 @@ func TestReadHistory(t *testing.T) {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	client, logger, cacheDir := newTestClient(t, mock)
-	_ = logger // Can be used for log assertions
-	defer os.RemoveAll(cacheDir)
+	client, logger, responsesDir := newTestClient(t, mock)
+	_ = logger
+	defer os.RemoveAll(responsesDir)
 
-	// Test the ReadHistory tool with channel ID
 	ctx := context.Background()
 	input := ReadHistoryInput{
 		Channel: "C123456789",
@@ -229,19 +226,19 @@ func TestReadHistory(t *testing.T) {
 	}
 
 	if output.ChannelID != "C123456789" {
-		t.Errorf("Expected channel ID 'C123456789', got '%s'", output.ChannelID)
+		t.Errorf("ChannelID: got %q, want %q", output.ChannelID, "C123456789")
 	}
 
 	if len(output.Messages) != 2 {
-		t.Errorf("Expected 2 messages, got %d", len(output.Messages))
+		t.Errorf("len(Messages): got %d, want 2", len(output.Messages))
 	}
 
 	if output.Messages[0].Text != "Hello world" {
-		t.Errorf("Expected first message text 'Hello world', got '%s'", output.Messages[0].Text)
+		t.Errorf("Messages[0].Text: got %q, want %q", output.Messages[0].Text, "Hello world")
 	}
 
 	if output.Messages[0].UserName != "alice" {
-		t.Errorf("Expected first message user name 'alice', got '%s'", output.Messages[0].UserName)
+		t.Errorf("Messages[0].UserName: got %q, want %q", output.Messages[0].UserName, "alice")
 	}
 }
 
@@ -273,11 +270,10 @@ func TestGetUser(t *testing.T) {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	client, logger, cacheDir := newTestClient(t, mock)
-	_ = logger // Can be used for log assertions
-	defer os.RemoveAll(cacheDir)
+	client, logger, responsesDir := newTestClient(t, mock)
+	_ = logger
+	defer os.RemoveAll(responsesDir)
 
-	// Test the GetUser tool
 	ctx := context.Background()
 	input := GetUserInput{
 		User: "U123456789",
@@ -289,19 +285,19 @@ func TestGetUser(t *testing.T) {
 	}
 
 	if output.User.ID != "U123456789" {
-		t.Errorf("Expected user ID 'U123456789', got '%s'", output.User.ID)
+		t.Errorf("User.ID: got %q, want %q", output.User.ID, "U123456789")
 	}
 
 	if output.User.Name != "alice" {
-		t.Errorf("Expected user name 'alice', got '%s'", output.User.Name)
+		t.Errorf("User.Name: got %q, want %q", output.User.Name, "alice")
 	}
 
 	if output.User.Email != "alice@example.com" {
-		t.Errorf("Expected user email 'alice@example.com', got '%s'", output.User.Email)
+		t.Errorf("User.Email: got %q, want %q", output.User.Email, "alice@example.com")
 	}
 
 	if !output.User.IsAdmin {
-		t.Error("Expected user to be admin")
+		t.Error("User.IsAdmin: got false, want true")
 	}
 }
 
@@ -332,11 +328,10 @@ func TestGetPermalink(t *testing.T) {
 		json.NewEncoder(w).Encode(response)
 	})
 
-	client, logger, cacheDir := newTestClient(t, mock)
-	_ = logger // Can be used for log assertions
-	defer os.RemoveAll(cacheDir)
+	client, logger, responsesDir := newTestClient(t, mock)
+	_ = logger
+	defer os.RemoveAll(responsesDir)
 
-	// Test the GetPermalink tool
 	ctx := context.Background()
 	input := GetPermalinkInput{
 		Channel:   "C123456789",
@@ -348,12 +343,12 @@ func TestGetPermalink(t *testing.T) {
 		t.Fatalf("GetPermalink failed: %v", err)
 	}
 
-	expectedPermalink := "https://example.slack.com/archives/C123456789/p1234567890123456"
-	if output.Permalink != expectedPermalink {
-		t.Errorf("Expected permalink '%s', got '%s'", expectedPermalink, output.Permalink)
+	wantPermalink := "https://example.slack.com/archives/C123456789/p1234567890123456"
+	if output.Permalink != wantPermalink {
+		t.Errorf("Permalink: got %q, want %q", output.Permalink, wantPermalink)
 	}
 
 	if output.Channel != "C123456789" {
-		t.Errorf("Expected channel 'C123456789', got '%s'", output.Channel)
+		t.Errorf("Channel: got %q, want %q", output.Channel, "C123456789")
 	}
 }

@@ -38,7 +38,7 @@ type ListChannelsOutput struct {
 }
 
 // ListChannels lists channels the user has access to
-// Results are written to a cache file and a summary is returned to save tokens
+// Results are written to a response file and a summary is returned to save tokens
 func (c *Client) ListChannels(ctx context.Context, req *mcp.CallToolRequest, input ListChannelsInput) (*mcp.CallToolResult, ListChannelsOutput, error) {
 	types := []string{"public_channel", "private_channel"}
 	if input.Types != "" {
@@ -427,39 +427,6 @@ func (c *Client) ReadThread(ctx context.Context, req *mcp.CallToolRequest, input
 	}
 
 	return nil, output, nil
-}
-
-// RegisterTools registers all Slack tools with the MCP server
-func (c *Client) RegisterTools(server *mcp.Server) {
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "slack_list_channels",
-		Description: "List Slack channels the user has access to. Returns channel names, IDs, topics, and member counts.",
-	}, c.ListChannels)
-
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "slack_read_history",
-		Description: "Read message history from a Slack channel or conversation. Returns messages with author info, timestamps, and thread details.",
-	}, c.ReadHistory)
-
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "slack_search_messages",
-		Description: "Search for messages across the Slack workspace. Supports Slack search syntax like from:@user, in:#channel, before:2024-01-01.",
-	}, c.SearchMessages)
-
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "slack_get_user",
-		Description: "Look up a Slack user by ID or email address. Returns profile information including name, title, status, and timezone.",
-	}, c.GetUser)
-
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "slack_get_permalink",
-		Description: "Get a permanent link (URL) to a specific Slack message. Useful for sharing or referencing messages.",
-	}, c.GetPermalink)
-
-	mcp.AddTool(server, &mcp.Tool{
-		Name:        "slack_read_thread",
-		Description: "Read all replies in a Slack thread. Use the thread parent's timestamp from slack_read_history (messages with reply_count > 0).",
-	}, c.ReadThread)
 }
 
 // formatTimestamp converts a Slack timestamp to a readable format

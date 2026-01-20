@@ -4,18 +4,32 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 )
 
+// SlackAPI defines the Slack API methods used by the client
+//
+//go:generate go tool mockgen -source=$GOFILE -destination=client_mocks.go -package=slack
+type SlackAPI interface {
+	GetConversationsContext(ctx context.Context, params *slack.GetConversationsParameters) ([]slack.Channel, string, error)
+	GetConversationInfoContext(ctx context.Context, input *slack.GetConversationInfoInput) (*slack.Channel, error)
+	GetConversationHistoryContext(ctx context.Context, params *slack.GetConversationHistoryParameters) (*slack.GetConversationHistoryResponse, error)
+	GetConversationRepliesContext(ctx context.Context, params *slack.GetConversationRepliesParameters) ([]slack.Message, bool, string, error)
+	GetUserInfoContext(ctx context.Context, user string) (*slack.User, error)
+	GetUserByEmailContext(ctx context.Context, email string) (*slack.User, error)
+	SearchMessagesContext(ctx context.Context, query string, params slack.SearchParameters) (*slack.SearchMessages, error)
+	GetPermalinkContext(ctx context.Context, params *slack.PermalinkParameters) (string, error)
+}
+
 // Config holds configuration for the Slack client
 type Config struct {
-	Token   string // Slack API token (required)
-	Cookie  string // Slack cookie for xoxc token auth (optional)
-	WorkDir string // Working directory for response files
+	Token    string // Slack API token (required)
+	Cookie   string // Slack cookie for xoxc token auth (optional)
+	LogLevel string // "debug", "info", "warn", "error"
+	WorkDir  string // the path to the working directory for this client
 }
 
 // FileRef describes a file written by ResponseWriter
@@ -32,13 +46,13 @@ type ResponseWriter interface {
 }
 
 type Client struct {
-	api       *slack.Client
+	api       SlackAPI
 	channelID map[string]string // cache: name -> ID
 	logger    *zap.Logger
 	responses ResponseWriter
 }
 
-func NewClient(cfg Config, logger *zap.Logger) (*Client, error) {
+func NewClient(cfg Config, logger *zap.Logger, responses ResponseWriter) (*Client, error) {
 	if cfg.Token == "" {
 		return nil, fmt.Errorf("slack token is required")
 	}
@@ -55,20 +69,18 @@ func NewClient(cfg Config, logger *zap.Logger) (*Client, error) {
 
 	api := slack.New(cfg.Token, opts...)
 
-	outputDir := filepath.Join(cfg.WorkDir, "cache")
-
 	logger.Info("Slack client initialized successfully")
 
 	return &Client{
 		api:       api,
 		channelID: make(map[string]string),
 		logger:    logger,
-		responses: NewFileResponseWriter(outputDir),
+		responses: responses,
 	}, nil
 }
 
 // newClientWithAPI creates a client with an existing Slack API client (for testing)
-func newClientWithAPI(api *slack.Client, logger *zap.Logger, responses ResponseWriter) *Client {
+func newClientWithAPI(api SlackAPI, logger *zap.Logger, responses ResponseWriter) *Client {
 	if logger == nil {
 		logger = zap.NewNop()
 	}

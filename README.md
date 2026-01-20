@@ -70,13 +70,13 @@ The server uses structured logging (zap) with configurable log levels. Control v
 
 | Level | Description | Use Case |
 |-------|-------------|----------|
-| `debug` | Verbose logging including cache hits, HTTP requests, page details | Troubleshooting and development |
+| `debug` | Verbose logging including channel lookups, HTTP requests, page details | Troubleshooting and development |
 | `info` | Normal operational logging (default) | Production use |
 | `warn` | Warnings and errors only | Minimal logging |
 | `error` | Errors only | Critical issues only |
 
 **What gets logged:**
-- **Debug**: Cache lookups, API calls, pagination details
+- **Debug**: Channel ID lookups, API calls, pagination details
 - **Info**: Client initialization, channel searches, rate limit retries
 - **Warn**: Rate limits, channels not found
 - **Error**: Authentication failures, API errors
@@ -93,10 +93,10 @@ The server creates `~/.claude/slack-mcp/` on startup with the following structur
 ```
 ~/.claude/slack-mcp/
 ├── slack-mcp.log      # Server logs
-└── cache/             # Tool output files (channel lists, etc.)
+└── responses/         # Tool output files (channel lists, etc.)
 ```
 
-Some tools write their output to files in the cache directory and return a summary with a file reference. This reduces token usage when working with large result sets (e.g., paginating through hundreds of channels).
+Some tools write their output to files in the responses directory and return a summary with a file reference. This reduces token usage when working with large result sets (e.g., paginating through hundreds of channels).
 
 ## Available Tools
 

@@ -34,42 +34,33 @@ func newCookieTransport(cookie string, logger *zap.Logger) *cookieTransport {
 	}
 }
 
-// getConversationsWithRetry fetches conversations and handles rate limiting
-// by respecting the Retry-After header and automatically retrying
-func (c *Client) getConversationsWithRetry(ctx context.Context, params *slack.GetConversationsParameters) ([]slack.Channel, string, error) {
+// withRetry executes fn and automatically retries on Slack rate limit errors.
+// The fn closure should perform the API call and return any error.
+// Results should be captured in variables in the outer scope.
+func withRetry(ctx context.Context, logger *zap.Logger, fn func() error) error {
 	for {
-		channels, cursor, err := c.api.GetConversationsContext(ctx, params)
-		// Check if this is a rate limit error
-		if err != nil {
-			var rateLimitErr *slack.RateLimitedError
-			if errors.As(err, &rateLimitErr) {
-				c.logger.Warn("Rate limit hit, waiting before retry",
-					zap.Duration("retry_after", rateLimitErr.RetryAfter))
-				// Wait for the duration specified in Retry-After header
-				select {
-				case <-time.After(rateLimitErr.RetryAfter):
-					c.logger.Info("Retrying after rate limit wait")
-					// Retry the request
-					continue
-				case <-ctx.Done():
-					c.logger.Debug("Context cancelled during rate limit wait")
-					return nil, "", ctx.Err()
-				}
-			}
-			// Check if context was cancelled (expected when stopping pagination early)
-			if errors.Is(err, context.Canceled) {
-				c.logger.Debug("Context cancelled during API call")
-				return nil, "", err
-			}
-			// Non-rate-limit error, return it
-			c.logger.Error("API error fetching conversations", zap.Error(err))
-			return nil, "", err
+		err := fn()
+		if err == nil {
+			return nil
 		}
 
-		// Success, return the results
-		c.logger.Debug("Successfully fetched conversations page",
-			zap.Int("channel_count", len(channels)),
-			zap.Bool("has_more", cursor != ""))
-		return channels, cursor, nil
+		var rateLimitErr *slack.RateLimitedError
+		if errors.As(err, &rateLimitErr) {
+			logger.Warn("Rate limit hit, waiting before retry",
+				zap.Duration("retry_after", rateLimitErr.RetryAfter))
+			select {
+			case <-time.After(rateLimitErr.RetryAfter):
+				logger.Info("Retrying after rate limit wait")
+				continue
+			case <-ctx.Done():
+				logger.Debug("Context cancelled during rate limit wait")
+				return ctx.Err()
+			}
+		}
+
+		if errors.Is(err, context.Canceled) {
+			logger.Debug("Context cancelled during API call")
+		}
+		return err
 	}
 }

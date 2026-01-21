@@ -186,11 +186,17 @@ func (c *Client) findChannelID(ctx context.Context, name string) (string, error)
 			}
 
 			// Fetch page with automatic rate limit handling
-			channels, nextCursor, err := c.getConversationsWithRetry(ctx, &slack.GetConversationsParameters{
-				Types:           []string{"public_channel", "private_channel"},
-				ExcludeArchived: true,
-				Limit:           1000,
-				Cursor:          cursor,
+			var channels []slack.Channel
+			var nextCursor string
+			err := withRetry(ctx, c.logger, func() error {
+				var err error
+				channels, nextCursor, err = c.api.GetConversationsContext(ctx, &slack.GetConversationsParameters{
+					Types:           []string{"public_channel", "private_channel"},
+					ExcludeArchived: true,
+					Limit:           1000,
+					Cursor:          cursor,
+				})
+				return err
 			})
 
 			// Send page result (success or error)

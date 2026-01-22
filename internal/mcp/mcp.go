@@ -8,6 +8,42 @@ import (
 	"go.uber.org/zap"
 )
 
+// errorWrappingHandler wraps a ToolHandler to provide enhanced error messages
+type errorWrappingHandler struct {
+	handler ToolHandler
+	logger  *zap.Logger
+}
+
+func (h *errorWrappingHandler) ListChannels(ctx context.Context, req *mcp.CallToolRequest, input slackclient.ListChannelsInput) (*mcp.CallToolResult, slackclient.ListChannelsOutput, error) {
+	result, output, err := h.handler.ListChannels(ctx, req, input)
+	return result, output, slackclient.WrapError(h.logger, "list_channels", err)
+}
+
+func (h *errorWrappingHandler) ReadHistory(ctx context.Context, req *mcp.CallToolRequest, input slackclient.ReadHistoryInput) (*mcp.CallToolResult, slackclient.ReadHistoryOutput, error) {
+	result, output, err := h.handler.ReadHistory(ctx, req, input)
+	return result, output, slackclient.WrapError(h.logger, "read_history", err)
+}
+
+func (h *errorWrappingHandler) SearchMessages(ctx context.Context, req *mcp.CallToolRequest, input slackclient.SearchMessagesInput) (*mcp.CallToolResult, slackclient.SearchMessagesOutput, error) {
+	result, output, err := h.handler.SearchMessages(ctx, req, input)
+	return result, output, slackclient.WrapError(h.logger, "search_messages", err)
+}
+
+func (h *errorWrappingHandler) GetUser(ctx context.Context, req *mcp.CallToolRequest, input slackclient.GetUserInput) (*mcp.CallToolResult, slackclient.GetUserOutput, error) {
+	result, output, err := h.handler.GetUser(ctx, req, input)
+	return result, output, slackclient.WrapError(h.logger, "get_user", err)
+}
+
+func (h *errorWrappingHandler) GetPermalink(ctx context.Context, req *mcp.CallToolRequest, input slackclient.GetPermalinkInput) (*mcp.CallToolResult, slackclient.GetPermalinkOutput, error) {
+	result, output, err := h.handler.GetPermalink(ctx, req, input)
+	return result, output, slackclient.WrapError(h.logger, "get_permalink", err)
+}
+
+func (h *errorWrappingHandler) ReadThread(ctx context.Context, req *mcp.CallToolRequest, input slackclient.ReadThreadInput) (*mcp.CallToolResult, slackclient.ReadThreadOutput, error) {
+	result, output, err := h.handler.ReadThread(ctx, req, input)
+	return result, output, slackclient.WrapError(h.logger, "read_thread", err)
+}
+
 // ToolHandler defines the interface for Slack tool operations
 //
 //go:generate go tool mockgen -source=$GOFILE -destination=mcp_mocks.go -package=mcp
@@ -30,7 +66,10 @@ func CreateServer(logger *zap.Logger, handler ToolHandler) *mcp.Server {
 		},
 		nil,
 	)
-	registerTools(server, handler)
+
+	// Wrap handler to provide enhanced error messages for auth failures
+	wrappedHandler := &errorWrappingHandler{handler: handler, logger: logger}
+	registerTools(server, wrappedHandler)
 	logger.Info("Slack MCP server initialized, starting transport")
 	return server
 }

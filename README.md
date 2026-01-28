@@ -93,20 +93,27 @@ The server creates `~/.claude/slack-mcp/` on startup with the following structur
 ```
 ~/.claude/slack-mcp/
 ├── slack-mcp.log      # Server logs
-└── responses/         # Tool output files (channel lists, etc.)
+└── responses/         # Tool output files (channel lists, exports, etc.)
 ```
 
 Some tools write their output to files in the responses directory and return a summary with a file reference. This reduces token usage when working with large result sets (e.g., paginating through hundreds of channels).
 
+The `slack_export_channel` tool writes JSON-lines files:
+- Main file: Top-level messages in chronological order (oldest first)
+- Thread files: One file per thread containing parent and all replies
+- Each message includes timestamp (ISO 8601), user name, text, and reactions
+
 ## Available Tools
 
-| Tool | Description |
-|------|-------------|
-| `slack_list_channels` | List channels you have access to |
-| `slack_read_history` | Read messages from a channel |
-| `slack_search_messages` | Search messages across workspace |
-| `slack_get_user` | Look up user by ID or email |
-| `slack_get_permalink` | Get permalink to a message |
+| Tool                   | Description                                                   |
+|------------------------|---------------------------------------------------------------|
+| `slack_list_channels`  | List channels you have access to                              |
+| `slack_read_history`   | Read messages from a channel                                  |
+| `slack_read_thread`    | Read all replies in a thread                                  |
+| `slack_search_messages`| Search messages across workspace                              |
+| `slack_get_user`       | Look up user by ID or email                                   |
+| `slack_get_permalink`  | Get permalink to a message                                    |
+| `slack_export_channel` | Export channel contents (including threads) to JSON-lines     |
 
 ## Usage Examples
 
@@ -117,6 +124,7 @@ Once configured, Claude Code can use these tools:
 - "Search for messages about the deployment"
 - "Who is user U1234567890?"
 - "Get a link to that message"
+- "Export the #engineering channel to a file"
 
 ## Required Slack Scopes
 

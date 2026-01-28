@@ -60,6 +60,7 @@ func TestServer_ListsAllRegisteredTools(t *testing.T) {
 		"slack_get_user",
 		"slack_get_permalink",
 		"slack_read_thread",
+		"slack_export_channel",
 	}
 
 	if len(result.Tools) != len(wantTools) {

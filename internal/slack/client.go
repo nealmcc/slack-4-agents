@@ -40,9 +40,17 @@ type FileRef struct {
 	Lines int    `json:"lines"`
 }
 
+// JSONLineWriter provides streaming writes for JSON-lines format
+type JSONLineWriter interface {
+	WriteLine(data any) error
+}
+
 // ResponseWriter writes large response data to a file and returns a reference
 type ResponseWriter interface {
 	WriteJSON(name string, data any) (FileRef, error)
+	WriteJSONLines(name string, writeFn func(w JSONLineWriter) error) (FileRef, error)
+	WriteJSONLinesNamed(filename string, writeFn func(w JSONLineWriter) error) (FileRef, error)
+	Dir() string
 }
 
 type Client struct {

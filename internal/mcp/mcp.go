@@ -44,6 +44,11 @@ func (h *errorWrappingHandler) ReadThread(ctx context.Context, req *mcp.CallTool
 	return result, output, slackclient.WrapError(h.logger, "read_thread", err)
 }
 
+func (h *errorWrappingHandler) ExportChannel(ctx context.Context, req *mcp.CallToolRequest, input slackclient.ExportChannelInput) (*mcp.CallToolResult, slackclient.ExportChannelOutput, error) {
+	result, output, err := h.handler.ExportChannel(ctx, req, input)
+	return result, output, slackclient.WrapError(h.logger, "export_channel", err)
+}
+
 // ToolHandler defines the interface for Slack tool operations
 //
 //go:generate go tool mockgen -source=$GOFILE -destination=mcp_mocks.go -package=mcp
@@ -54,6 +59,7 @@ type ToolHandler interface {
 	GetUser(ctx context.Context, req *mcp.CallToolRequest, input slackclient.GetUserInput) (*mcp.CallToolResult, slackclient.GetUserOutput, error)
 	GetPermalink(ctx context.Context, req *mcp.CallToolRequest, input slackclient.GetPermalinkInput) (*mcp.CallToolResult, slackclient.GetPermalinkOutput, error)
 	ReadThread(ctx context.Context, req *mcp.CallToolRequest, input slackclient.ReadThreadInput) (*mcp.CallToolResult, slackclient.ReadThreadOutput, error)
+	ExportChannel(ctx context.Context, req *mcp.CallToolRequest, input slackclient.ExportChannelInput) (*mcp.CallToolResult, slackclient.ExportChannelOutput, error)
 }
 
 // CreateServer creates an MCP server with all Slack tools registered
@@ -105,4 +111,9 @@ func registerTools(server *mcp.Server, handler ToolHandler) {
 		Name:        "slack_read_thread",
 		Description: "Read all replies in a Slack thread. Use the thread parent's timestamp from slack_read_history (messages with reply_count > 0).",
 	}, handler.ReadThread)
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "slack_export_channel",
+		Description: "Export a Slack channel's contents (including threads) to JSON-lines format. Returns a file with all messages and thread replies, reactions, and user names.",
+	}, handler.ExportChannel)
 }

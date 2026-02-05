@@ -2,12 +2,10 @@ package slack
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/slack-go/slack"
 )
@@ -15,17 +13,6 @@ import (
 type Client struct {
 	api       *slack.Client
 	channelID map[string]string // cache: name -> ID
-}
-
-// cookieTransport wraps an http.RoundTripper to add cookie headers
-type cookieTransport struct {
-	transport http.RoundTripper
-	cookie    string
-}
-
-func (t *cookieTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("Cookie", "d="+t.cookie)
-	return t.transport.RoundTrip(req)
 }
 
 func NewClient() (*Client, error) {
@@ -39,10 +26,7 @@ func NewClient() (*Client, error) {
 	// Support xoxc tokens with cookie authentication
 	if cookie := os.Getenv("SLACK_COOKIE"); cookie != "" {
 		httpClient := &http.Client{
-			Transport: &cookieTransport{
-				transport: http.DefaultTransport,
-				cookie:    cookie,
-			},
+			Transport: newCookieTransport(cookie),
 		}
 		opts = append(opts, slack.OptionHTTPClient(httpClient))
 	}
@@ -96,35 +80,7 @@ func (c *Client) GetChannelID(ctx context.Context, channelOrName string) (string
 	}
 
 	// Otherwise, resolve the name to an ID
-	return c.ResolveChannelID(ctx, channelOrName)
-}
-
-// getConversationsWithRetry fetches conversations and handles rate limiting
-// by respecting the Retry-After header and automatically retrying
-func (c *Client) getConversationsWithRetry(ctx context.Context, params *slack.GetConversationsParameters) ([]slack.Channel, string, error) {
-	for {
-		channels, cursor, err := c.api.GetConversationsContext(ctx, params)
-
-		// Check if this is a rate limit error
-		if err != nil {
-			var rateLimitErr *slack.RateLimitedError
-			if errors.As(err, &rateLimitErr) {
-				// Wait for the duration specified in Retry-After header
-				select {
-				case <-time.After(rateLimitErr.RetryAfter):
-					// Retry the request
-					continue
-				case <-ctx.Done():
-					return nil, "", ctx.Err()
-				}
-			}
-			// Non-rate-limit error, return it
-			return nil, "", err
-		}
-
-		// Success, return the results
-		return channels, cursor, nil
-	}
+	return c.findChannelID(ctx, channelOrName)
 }
 
 // channelPage represents a page of channels from the API
@@ -133,8 +89,8 @@ type channelPage struct {
 	err      error
 }
 
-// ResolveChannelID converts a channel name to its ID
-func (c *Client) ResolveChannelID(ctx context.Context, name string) (string, error) {
+// findChannelID converts a channel name to its ID
+func (c *Client) findChannelID(ctx context.Context, name string) (string, error) {
 	// Strip # prefix if present
 	name = strings.TrimPrefix(name, "#")
 
@@ -202,9 +158,4 @@ func (c *Client) ResolveChannelID(ctx context.Context, name string) (string, err
 	}
 
 	return "", fmt.Errorf("channel not found: %s", name)
-}
-
-// API returns the underlying slack client for direct access
-func (c *Client) API() *slack.Client {
-	return c.api
 }

@@ -50,3 +50,31 @@ internal/slack/        # Slack client and tool implementations
   tools.go             # Tool method implementations
   transport.go         # HTTP transport with cookie auth
 ```
+
+## Releasing
+
+Releases are managed with [GoReleaser](https://goreleaser.com/). Binaries are built for darwin (arm64/amd64), linux (arm64/amd64), and windows (amd64).
+
+### Create a release
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+goreleaser release --clean
+```
+
+This builds binaries, generates checksums, and uploads everything to a GitHub Release.
+
+### Test locally (no upload)
+
+```bash
+goreleaser build --snapshot --clean
+```
+
+Binaries are output to `dist/`.
+
+### Install goreleaser
+
+```bash
+go install github.com/goreleaser/goreleaser/v2@latest
+```

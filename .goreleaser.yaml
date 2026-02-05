@@ -1,0 +1,33 @@
+version: 2
+
+project_name: slack-mcp
+
+builds:
+  - main: ./cmd/slack-mcp
+    binary: slack-mcp
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  github:
+    owner: matillion
+    name: slack-mcp-server

@@ -16,3 +16,4 @@ coverage.html
 
 # Generated mocks
 *_mocks.go
+dist/

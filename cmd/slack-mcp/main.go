@@ -2,18 +2,25 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 
+	slackmcp "github.com/matillion/slack-mcp-server/internal/mcp"
+	slackclient "github.com/matillion/slack-mcp-server/internal/slack"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	slackmcp "github.com/nealmcconachie/slack-mcp/internal/mcp"
-	slackclient "github.com/nealmcconachie/slack-mcp/internal/slack"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
+var version = "dev"
+
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
+		fmt.Println(version)
+		return
+	}
 	cfg := createConfig()
 	initWorkDir(cfg.WorkDir)
 	logger := initLogger(cfg.LogLevel, cfg.WorkDir)

@@ -61,6 +61,7 @@ func TestServer_ListsAllRegisteredTools(t *testing.T) {
 		"slack_get_permalink",
 		"slack_read_thread",
 		"slack_export_channel",
+		"slack_read_canvas",
 	}
 
 	if len(result.Tools) != len(wantTools) {

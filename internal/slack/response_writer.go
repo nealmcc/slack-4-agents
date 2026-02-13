@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -86,6 +87,31 @@ func (w *FileResponseWriter) WriteJSONLines(name string, writeFn func(jw JSONLin
 // Unlike WriteJSONLines, this does not add a timestamp suffix.
 func (w *FileResponseWriter) WriteJSONLinesNamed(filename string, writeFn func(jw JSONLineWriter) error) (FileRef, error) {
 	return w.writeJSONLinesFile(filename, writeFn)
+}
+
+// WriteText writes plain text content to a timestamped file
+func (w *FileResponseWriter) WriteText(name string, content string) (FileRef, error) {
+	filename := fmt.Sprintf("%s-%d.txt", name, time.Now().UnixNano())
+	filePath := filepath.Join(w.dir, filename)
+
+	if err := os.WriteFile(filePath, []byte(content), 0o644); err != nil {
+		return FileRef{}, fmt.Errorf("failed to write file: %w", err)
+	}
+
+	lines := 0
+	if content != "" {
+		lines = strings.Count(content, "\n")
+		if !strings.HasSuffix(content, "\n") {
+			lines++
+		}
+	}
+
+	return FileRef{
+		Path:  filePath,
+		Name:  filename,
+		Bytes: int64(len(content)),
+		Lines: lines,
+	}, nil
 }
 
 func (w *FileResponseWriter) writeJSONLinesFile(filename string, writeFn func(jw JSONLineWriter) error) (FileRef, error) {

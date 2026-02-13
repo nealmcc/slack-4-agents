@@ -2,6 +2,7 @@ package slack
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -431,6 +432,91 @@ func (c *Client) ReadThread(ctx context.Context, req *mcp.CallToolRequest, input
 	}
 
 	return nil, output, nil
+}
+
+// ReadCanvasInput defines input for reading a Slack canvas
+type ReadCanvasInput struct {
+	Channel string `json:"channel,omitempty" jsonschema:"Channel ID or name (for channel canvases)"`
+	FileID  string `json:"file_id,omitempty" jsonschema:"Canvas file ID (for standalone canvases)"`
+}
+
+// ReadCanvasOutput contains the canvas content and metadata
+type ReadCanvasOutput struct {
+	File   FileRef `json:"file"`
+	FileID string  `json:"file_id"`
+	Title  string  `json:"title"`
+}
+
+// ReadCanvas reads a Slack canvas and returns its content as plain text
+func (c *Client) ReadCanvas(ctx context.Context, req *mcp.CallToolRequest, input ReadCanvasInput) (*mcp.CallToolResult, ReadCanvasOutput, error) {
+	if input.Channel == "" && input.FileID == "" {
+		return nil, ReadCanvasOutput{}, fmt.Errorf("either channel or file_id is required")
+	}
+	if input.Channel != "" && input.FileID != "" {
+		return nil, ReadCanvasOutput{}, fmt.Errorf("provide either channel or file_id, not both")
+	}
+
+	fileID := input.FileID
+
+	if input.Channel != "" {
+		channelID, err := c.GetChannelID(ctx, input.Channel)
+		if err != nil {
+			return nil, ReadCanvasOutput{}, err
+		}
+
+		var ch *slack.Channel
+		err = withRetry(ctx, c.logger, func() error {
+			var e error
+			ch, e = c.api.GetConversationInfoContext(ctx, &slack.GetConversationInfoInput{
+				ChannelID: channelID,
+			})
+			return e
+		})
+		if err != nil {
+			return nil, ReadCanvasOutput{}, fmt.Errorf("failed to get channel info: %w", err)
+		}
+
+		if ch.Properties == nil || ch.Properties.Canvas.FileId == "" {
+			return nil, ReadCanvasOutput{}, fmt.Errorf("channel has no canvas")
+		}
+		fileID = ch.Properties.Canvas.FileId
+	}
+
+	var file *slack.File
+	err := withRetry(ctx, c.logger, func() error {
+		var e error
+		file, _, _, e = c.api.GetFileInfoContext(ctx, fileID, 0, 0)
+		return e
+	})
+	if err != nil {
+		return nil, ReadCanvasOutput{}, fmt.Errorf("failed to get file info: %w", err)
+	}
+
+	if file.Filetype != "quip" {
+		return nil, ReadCanvasOutput{}, fmt.Errorf("file is not a canvas (filetype %q, expected \"quip\")", file.Filetype)
+	}
+
+	var buf bytes.Buffer
+	err = withRetry(ctx, c.logger, func() error {
+		buf.Reset()
+		return c.api.GetFileContext(ctx, file.URLPrivateDownload, &buf)
+	})
+	if err != nil {
+		return nil, ReadCanvasOutput{}, fmt.Errorf("failed to download canvas: %w", err)
+	}
+
+	text := stripHTML(buf.String())
+
+	ref, err := c.responses.WriteText("canvas", text)
+	if err != nil {
+		return nil, ReadCanvasOutput{}, fmt.Errorf("failed to write response: %w", err)
+	}
+
+	return nil, ReadCanvasOutput{
+		File:   ref,
+		FileID: fileID,
+		Title:  file.Title,
+	}, nil
 }
 
 // Timestamp wraps a Slack timestamp and formats as ISO 8601 for display and JSON

@@ -3,6 +3,7 @@ package slack
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -22,6 +23,8 @@ type SlackAPI interface {
 	GetUserByEmailContext(ctx context.Context, email string) (*slack.User, error)
 	SearchMessagesContext(ctx context.Context, query string, params slack.SearchParameters) (*slack.SearchMessages, error)
 	GetPermalinkContext(ctx context.Context, params *slack.PermalinkParameters) (string, error)
+	GetFileInfoContext(ctx context.Context, fileID string, count int, page int) (*slack.File, []slack.Comment, *slack.Paging, error)
+	GetFileContext(ctx context.Context, downloadURL string, writer io.Writer) error
 }
 
 // Config holds configuration for the Slack client
@@ -50,6 +53,7 @@ type ResponseWriter interface {
 	WriteJSON(name string, data any) (FileRef, error)
 	WriteJSONLines(name string, writeFn func(w JSONLineWriter) error) (FileRef, error)
 	WriteJSONLinesNamed(filename string, writeFn func(w JSONLineWriter) error) (FileRef, error)
+	WriteText(name string, content string) (FileRef, error)
 	Dir() string
 }
 

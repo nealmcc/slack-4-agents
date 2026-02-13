@@ -151,6 +151,98 @@ func TestWriteJSONLines_DirectoryNotExist(t *testing.T) {
 	}
 }
 
+func TestWriteText_Basic(t *testing.T) {
+	dir, err := os.MkdirTemp("", "response-writer-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	w := NewFileResponseWriter(dir)
+
+	content := "# My Canvas\n\nHello world\n\n- Item one\n- Item two\n"
+	ref, err := w.WriteText("canvas", content)
+	if err != nil {
+		t.Fatalf("WriteText failed: %v", err)
+	}
+
+	if !strings.HasSuffix(ref.Name, ".txt") {
+		t.Errorf("Name: got %q, want .txt suffix", ref.Name)
+	}
+
+	if !filepath.IsAbs(ref.Path) {
+		t.Errorf("Path is not absolute: %s", ref.Path)
+	}
+
+	if ref.Bytes != int64(len(content)) {
+		t.Errorf("Bytes: got %d, want %d", ref.Bytes, len(content))
+	}
+
+	if ref.Lines != 6 {
+		t.Errorf("Lines: got %d, want 6", ref.Lines)
+	}
+
+	data, err := os.ReadFile(ref.Path)
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+	}
+
+	if string(data) != content {
+		t.Errorf("Content: got %q, want %q", string(data), content)
+	}
+}
+
+func TestWriteText_Empty(t *testing.T) {
+	dir, err := os.MkdirTemp("", "response-writer-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	w := NewFileResponseWriter(dir)
+
+	ref, err := w.WriteText("empty", "")
+	if err != nil {
+		t.Fatalf("WriteText failed: %v", err)
+	}
+
+	if ref.Lines != 0 {
+		t.Errorf("Lines: got %d, want 0", ref.Lines)
+	}
+
+	if ref.Bytes != 0 {
+		t.Errorf("Bytes: got %d, want 0", ref.Bytes)
+	}
+}
+
+func TestWriteText_NoTrailingNewline(t *testing.T) {
+	dir, err := os.MkdirTemp("", "response-writer-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(dir)
+
+	w := NewFileResponseWriter(dir)
+
+	ref, err := w.WriteText("single", "Hello world")
+	if err != nil {
+		t.Fatalf("WriteText failed: %v", err)
+	}
+
+	if ref.Lines != 1 {
+		t.Errorf("Lines: got %d, want 1", ref.Lines)
+	}
+}
+
+func TestWriteText_DirectoryNotExist(t *testing.T) {
+	w := NewFileResponseWriter("/nonexistent/path/that/does/not/exist")
+
+	_, err := w.WriteText("test", "content")
+	if err == nil {
+		t.Error("Expected error for nonexistent directory, got nil")
+	}
+}
+
 func TestWriteJSON(t *testing.T) {
 	dir, err := os.MkdirTemp("", "response-writer-test-*")
 	if err != nil {

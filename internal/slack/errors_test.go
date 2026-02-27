@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestMatchAuthError(t *testing.T) {
@@ -81,7 +81,7 @@ func TestMatchAuthError(t *testing.T) {
 }
 
 func TestWrapError_AuthError(t *testing.T) {
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 	err := errors.New("invalid_auth")
 
 	wrapped := WrapError(logger, "test operation", err)
@@ -102,7 +102,7 @@ func TestWrapError_AuthError(t *testing.T) {
 }
 
 func TestWrapError_NonAuthError(t *testing.T) {
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 	originalErr := errors.New("channel_not_found")
 
 	wrapped := WrapError(logger, "test operation", originalErr)
@@ -119,7 +119,7 @@ func TestWrapError_NonAuthError(t *testing.T) {
 }
 
 func TestWrapError_NilError(t *testing.T) {
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 
 	wrapped := WrapError(logger, "test operation", nil)
 

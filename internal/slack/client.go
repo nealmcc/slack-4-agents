@@ -33,6 +33,7 @@ type Config struct {
 	Cookie   string // Slack cookie for xoxc token auth (optional)
 	LogLevel string // "debug", "info", "warn", "error"
 	WorkDir  string // the path to the working directory for this client
+	LogDir   string // the path to the log output directory
 }
 
 // FileRef describes a file written by ResponseWriter
@@ -59,7 +60,7 @@ type ResponseWriter interface {
 
 type Client struct {
 	api       SlackAPI
-	cache     *channelCache
+	index     *channelIndex
 	logger    *zap.Logger
 	responses ResponseWriter
 }
@@ -81,27 +82,47 @@ func NewClient(cfg Config, logger *zap.Logger, responses ResponseWriter) (*Clien
 
 	api := slack.New(cfg.Token, opts...)
 
-	logger.Info("Slack client initialized successfully")
-
-	return &Client{
+	c := &Client{
 		api:       api,
-		cache:     newChannelCache(),
 		logger:    logger,
 		responses: responses,
-	}, nil
+	}
+
+	channels, err := c.fetchAllChannels(context.Background())
+	if err != nil {
+		logger.Warn("Failed to populate channel index at startup; name lookups will fail",
+			zap.Error(err))
+	}
+	c.index = newIndex(channels)
+
+	logger.Info("Slack client initialized",
+		zap.Int("indexed_channels", len(channels)))
+
+	return c, nil
 }
 
-// newClientWithAPI creates a client with an existing Slack API client (for testing)
-func newClientWithAPI(api SlackAPI, logger *zap.Logger, responses ResponseWriter) *Client {
+// newClientWithAPI creates a client with a given SlackAPI (for testing)
+func newClientWithAPI(api SlackAPI, index *channelIndex, logger *zap.Logger, responses ResponseWriter) *Client {
 	if logger == nil {
 		logger = zap.NewNop()
 	}
+	if index == nil {
+		index = newIndex([]slack.Channel{})
+	}
 	return &Client{
 		api:       api,
-		cache:     newChannelCache(),
+		index:     index,
 		logger:    logger,
 		responses: responses,
 	}
+}
+
+// GetChannelID accepts either a channel name or ID and returns the channel ID
+func (c *Client) GetChannelID(channelOrName string) (string, error) {
+	if isChannelID(channelOrName) {
+		return channelOrName, nil
+	}
+	return c.findChannelID(channelOrName)
 }
 
 // isChannelID checks if a string looks like a Slack channel ID
@@ -127,140 +148,78 @@ func isChannelID(s string) bool {
 	return true
 }
 
-// GetChannelID accepts either a channel name or ID and returns the channel ID
-// If given an ID (e.g., "CTKV7RT5Z"), validates it exists and returns it
-// If given a name (e.g., "dogs" or "#general"), looks it up
-func (c *Client) GetChannelID(ctx context.Context, channelOrName string) (string, error) {
-	// If it's already an ID, validate it exists using conversations API
-	if isChannelID(channelOrName) {
-		c.logger.Debug("Validating channel ID", zap.String("channel_id", channelOrName))
-		channel, err := c.api.GetConversationInfoContext(ctx, &slack.GetConversationInfoInput{
-			ChannelID: channelOrName,
-		})
-		if err != nil {
-			c.logger.Error("Failed to validate channel ID",
-				zap.String("channel_id", channelOrName),
-				zap.Error(err))
-			return "", fmt.Errorf("invalid channel ID: %w", err)
-		}
-		// Cache the name -> ID mapping for future lookups
-		c.cache.Set(strings.ToLower(channel.Name), channel.ID)
-		c.logger.Debug("Channel ID validated and cached",
-			zap.String("channel_id", channel.ID),
-			zap.String("channel_name", channel.Name))
-		return channel.ID, nil
-	}
-
-	// Otherwise, resolve the name to an ID
-	return c.findChannelID(ctx, channelOrName)
-}
-
-// channelPage represents a page of channels from the API
-type channelPage struct {
-	channels []slack.Channel
-	err      error
-}
-
-// findChannelID converts a channel name to its ID
-func (c *Client) findChannelID(ctx context.Context, name string) (string, error) {
-	// Strip # prefix if present
+// findChannelID looks up a channel name in the pre-populated index
+func (c *Client) findChannelID(name string) (string, error) {
 	name = strings.TrimPrefix(name, "#")
 
-	// Convert to lowercase for case-insensitive lookup
-	name = strings.ToLower(name)
-
-	// Check cache
-	if id, ok := c.cache.Get(name); ok {
-		c.logger.Debug("Channel found in cache",
-			zap.String("channel_name", name),
-			zap.String("channel_id", id))
-		return id, nil
+	ch, ok := c.index.GetByName(name)
+	if !ok {
+		c.logger.Sugar().Infow("can't find channel", "name", name, "index", c.index.names)
+		return "", fmt.Errorf("channel not found: %s (index has %d entries)", name, c.index.Size())
 	}
 
-	c.logger.Info("Channel not in cache, starting pagination",
-		zap.String("channel_name", name))
+	c.logger.Debug("Channel found in index",
+		zap.String("channel_name", ch.NameNormalized),
+		zap.String("channel_id", ch.ID))
 
-	// Create channels for communication between goroutines
-	pages := make(chan channelPage, 1) // Buffer allows fetcher to send while processor works
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	return ch.ID, nil
+}
 
-	// Start fetcher goroutine to paginate through API results
-	go func() {
-		defer close(pages)
-		cursor := ""
-		for {
-			// Check if context was cancelled (target found or error occurred)
-			select {
-			case <-ctx.Done():
-				return
-			default:
+// fetchAllChannels paginates through all workspace channels, and returns a slice of all channels for indexing
+func (c *Client) fetchAllChannels(ctx context.Context) ([]slack.Channel, error) {
+	var (
+		channels  = make([]slack.Channel, 0, 2000)
+		cursor    = ""
+		pageCount = 0
+	)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			var (
+				page       []slack.Channel
+				nextCursor string
+				err        error
+			)
+
+			if page, nextCursor, err = c.getPageOfChannels(ctx, cursor, true); err != nil {
+				return nil, fmt.Errorf("failed to get channels: %s", err)
 			}
 
-			// Fetch page with automatic rate limit handling
-			var channels []slack.Channel
-			var nextCursor string
-			err := withRetry(ctx, c.logger, func() error {
-				var err error
-				channels, nextCursor, err = c.api.GetConversationsContext(ctx, &slack.GetConversationsParameters{
-					Types:           []string{"public_channel", "private_channel"},
-					ExcludeArchived: true,
-					Limit:           1000,
-					Cursor:          cursor,
-				})
-				return err
-			})
+			pageCount++
+			channels = append(channels, page...)
 
-			// Send page result (success or error)
-			select {
-			case pages <- channelPage{channels: channels, err: err}:
-			case <-ctx.Done():
-				return
-			}
+			c.logger.Debug("Fetched channel page",
+				zap.Int("page", pageCount),
+				zap.Int("channels_in_page", len(page)),
+				zap.Int("total_channels", len(channels)))
 
-			if err != nil || nextCursor == "" {
-				return
-			}
 			cursor = nextCursor
-		}
-	}()
-
-	// Process pages as they arrive
-	pageCount := 0
-	channelsProcessed := 0
-	for page := range pages {
-		if page.err != nil {
-			c.logger.Error("Failed to list channels",
-				zap.String("channel_name", name),
-				zap.Error(page.err))
-			return "", fmt.Errorf("failed to list channels: %w", page.err)
-		}
-
-		pageCount++
-		channelsProcessed += len(page.channels)
-		c.logger.Debug("Processing channel page",
-			zap.Int("page_number", pageCount),
-			zap.Int("channels_in_page", len(page.channels)),
-			zap.Int("total_processed", channelsProcessed))
-
-		// Add all channels from this page to cache and check for target
-		for _, ch := range page.channels {
-			c.cache.Set(ch.Name, ch.ID)
-			if ch.Name == name {
-				cancel() // Stop the fetcher goroutine
-				c.logger.Info("Channel found",
-					zap.String("channel_name", name),
-					zap.String("channel_id", ch.ID),
-					zap.Int("pages_searched", pageCount),
-					zap.Int("channels_processed", channelsProcessed))
-				return ch.ID, nil
+			if cursor == "" {
+				break
 			}
 		}
-	}
+		c.logger.Info("Channel index populated",
+			zap.Int("total_channels", len(channels)),
+			zap.Int("pages", pageCount))
 
-	c.logger.Warn("Channel not found after pagination",
-		zap.String("channel_name", name),
-		zap.Int("pages_searched", pageCount),
-		zap.Int("channels_processed", channelsProcessed))
-	return "", fmt.Errorf("channel not found: %s", name)
+		return channels, nil
+	}
+}
+
+func (c *Client) getPageOfChannels(ctx context.Context, cursor string, includeArchived bool,
+) (page []slack.Channel, nextCursor string, err error) {
+	err = withRetry(ctx, c.logger, func() error {
+		p, nc, err2 := c.api.GetConversationsContext(ctx, &slack.GetConversationsParameters{
+			Types:           []string{"public_channel", "private_channel", "mpim", "im"},
+			ExcludeArchived: !includeArchived,
+			Limit:           1000,
+			Cursor:          cursor,
+		})
+		page, nextCursor = p, nc
+		return err2
+	})
+	return
 }

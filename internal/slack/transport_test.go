@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/slack-go/slack"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestCookieTransport_RoundTrip(t *testing.T) {
@@ -20,7 +20,7 @@ func TestCookieTransport_RoundTrip(t *testing.T) {
 	}))
 	defer server.Close()
 
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 	transport := newCookieTransport("test-cookie-value", logger)
 
 	req, err := http.NewRequest("GET", server.URL, nil)
@@ -41,7 +41,7 @@ func TestCookieTransport_RoundTrip(t *testing.T) {
 }
 
 func TestNewCookieTransport(t *testing.T) {
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 	transport := newCookieTransport("my-cookie", logger)
 
 	if transport.cookie != "my-cookie" {
@@ -58,7 +58,7 @@ func TestNewCookieTransport(t *testing.T) {
 }
 
 func TestWithRetry_SuccessOnFirstTry(t *testing.T) {
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
 
 	callCount := 0
@@ -78,7 +78,7 @@ func TestWithRetry_SuccessOnFirstTry(t *testing.T) {
 }
 
 func TestWithRetry_NonRateLimitError(t *testing.T) {
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
 
 	expectedErr := errors.New("some other error")
@@ -99,7 +99,7 @@ func TestWithRetry_NonRateLimitError(t *testing.T) {
 }
 
 func TestWithRetry_RateLimitThenSuccess(t *testing.T) {
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 	ctx := context.Background()
 
 	callCount := 0
@@ -122,7 +122,7 @@ func TestWithRetry_RateLimitThenSuccess(t *testing.T) {
 }
 
 func TestWithRetry_ContextCancelledDuringWait(t *testing.T) {
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	callCount := 0
@@ -146,7 +146,7 @@ func TestWithRetry_ContextCancelledDuringWait(t *testing.T) {
 }
 
 func TestWithRetry_ContextAlreadyCancelled(t *testing.T) {
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 

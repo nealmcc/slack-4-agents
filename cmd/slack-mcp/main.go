@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	slackmcp "github.com/matillion/slack-mcp-server/internal/mcp"
 	slackclient "github.com/matillion/slack-mcp-server/internal/slack"
@@ -23,7 +24,7 @@ func main() {
 	}
 	cfg := createConfig()
 	initWorkDir(cfg.WorkDir)
-	logger := initLogger(cfg.LogLevel, cfg.WorkDir)
+	logger := initLogger(cfg.LogLevel, cfg.LogDir)
 	defer logger.Sync()
 
 	server := newServer(logger, cfg)
@@ -38,11 +39,13 @@ func createConfig() slackclient.Config {
 		log.Fatalf("Failed to get home directory: %v", err)
 	}
 
+	baseDir := filepath.Join(homeDir, ".claude", "servers", "slack")
 	cfg := slackclient.Config{
 		Token:    os.Getenv("SLACK_TOKEN"),
 		Cookie:   os.Getenv("SLACK_COOKIE"),
 		LogLevel: os.Getenv("LOG_LEVEL"),
-		WorkDir:  filepath.Join(homeDir, ".claude", "slack-mcp"),
+		WorkDir:  baseDir,
+		LogDir:   filepath.Join(baseDir, "logs"),
 	}
 	return cfg
 }
@@ -71,14 +74,18 @@ func newServer(logger *zap.Logger, cfg slackclient.Config) *mcp.Server {
 	return server
 }
 
-func initLogger(level string, workDir string) *zap.Logger {
+func initLogger(level string, logDir string) *zap.Logger {
 	logLevel := interpretLogLevel(level)
 
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.TimeKey = "timestamp"
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 
-	logFilePath := filepath.Join(workDir, "slack-mcp.log")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		log.Fatalf("Failed to create log directory: %v", err)
+	}
+	logFileName := fmt.Sprintf("slack-mcp-%s.log", time.Now().Format("2006-01-02"))
+	logFilePath := filepath.Join(logDir, logFileName)
 	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		log.Fatalf("Failed to open log file: %v", err)

@@ -7,13 +7,13 @@ import (
 	slackclient "github.com/matillion/slack-mcp-server/internal/slack"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/mock/gomock"
-	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestCreateServer_ReturnsValidServer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	handler := NewMockToolHandler(ctrl)
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 
 	server := CreateServer(logger, handler)
 
@@ -25,7 +25,7 @@ func TestCreateServer_ReturnsValidServer(t *testing.T) {
 func TestServer_ListsAllRegisteredTools(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	handler := NewMockToolHandler(ctrl)
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 
 	server := CreateServer(logger, handler)
 
@@ -83,7 +83,7 @@ func TestServer_ListsAllRegisteredTools(t *testing.T) {
 func TestServer_ToolsHaveDescriptions(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	handler := NewMockToolHandler(ctrl)
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 
 	server := CreateServer(logger, handler)
 
@@ -121,7 +121,7 @@ func TestServer_ToolsHaveDescriptions(t *testing.T) {
 func TestServer_CallToolInvokesHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	handler := NewMockToolHandler(ctrl)
-	logger := zap.NewNop()
+	logger := zaptest.NewLogger(t)
 
 	wantOutput := slackclient.GetUserOutput{
 		User: slackclient.UserInfo{

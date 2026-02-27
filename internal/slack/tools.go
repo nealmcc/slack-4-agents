@@ -131,7 +131,7 @@ type ReadHistoryOutput struct {
 
 // ReadHistory reads message history from a channel
 func (c *Client) ReadHistory(ctx context.Context, req *mcp.CallToolRequest, input ReadHistoryInput) (*mcp.CallToolResult, ReadHistoryOutput, error) {
-	channelID, err := c.GetChannelID(ctx, input.Channel)
+	channelID, err := c.GetChannelID(input.Channel)
 	if err != nil {
 		return nil, ReadHistoryOutput{}, err
 	}
@@ -334,7 +334,7 @@ type GetPermalinkOutput struct {
 
 // GetPermalink gets a permalink to a specific message
 func (c *Client) GetPermalink(ctx context.Context, req *mcp.CallToolRequest, input GetPermalinkInput) (*mcp.CallToolResult, GetPermalinkOutput, error) {
-	channelID, err := c.GetChannelID(ctx, input.Channel)
+	channelID, err := c.GetChannelID(input.Channel)
 	if err != nil {
 		return nil, GetPermalinkOutput{}, err
 	}
@@ -373,7 +373,7 @@ type ReadThreadOutput struct {
 
 // ReadThread reads all replies in a thread
 func (c *Client) ReadThread(ctx context.Context, req *mcp.CallToolRequest, input ReadThreadInput) (*mcp.CallToolResult, ReadThreadOutput, error) {
-	channelID, err := c.GetChannelID(ctx, input.Channel)
+	channelID, err := c.GetChannelID(input.Channel)
 	if err != nil {
 		return nil, ReadThreadOutput{}, err
 	}
@@ -459,7 +459,7 @@ func (c *Client) ReadCanvas(ctx context.Context, req *mcp.CallToolRequest, input
 	fileID := input.FileID
 
 	if input.Channel != "" {
-		channelID, err := c.GetChannelID(ctx, input.Channel)
+		channelID, err := c.GetChannelID(input.Channel)
 		if err != nil {
 			return nil, ReadCanvasOutput{}, err
 		}
@@ -694,7 +694,7 @@ type ReactionInfo struct {
 // The main file contains top-level messages in chronological order (oldest first).
 // Each thread gets its own separate file containing the parent and all replies.
 func (c *Client) ExportChannel(ctx context.Context, req *mcp.CallToolRequest, input ExportChannelInput) (*mcp.CallToolResult, ExportChannelOutput, error) {
-	channelID, err := c.GetChannelID(ctx, input.Channel)
+	channelID, err := c.GetChannelID(input.Channel)
 	if err != nil {
 		return nil, ExportChannelOutput{}, err
 	}

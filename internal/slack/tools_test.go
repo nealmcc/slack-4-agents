@@ -242,7 +242,7 @@ func newTestClient(t *testing.T, mock *mockSlackServer) (*Client, *testLogger, s
 
 	logger := newTestLogger()
 	responses := NewFileResponseWriter(outputDir)
-	return newClientWithAPI(api, logger.Logger, responses), logger, outputDir
+	return newClientWithAPI(api, nil, logger.Logger, responses), logger, outputDir
 }
 
 func TestListChannels(t *testing.T) {

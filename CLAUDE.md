@@ -1,4 +1,4 @@
-# Slack MCP Server
+# Slack 4 Agents
 
 A Go-based MCP server providing Claude Code with read-only Slack access.
 
@@ -41,7 +41,7 @@ Follow the Go convention: **accept interfaces, return structs**.
 ### Project Structure
 
 ```
-cmd/slack-mcp/         # Main entry point
+cmd/slack-4-agents/         # Main entry point
 internal/mcp/          # MCP server setup and tool registration
   mcp.go               # Server creation, ToolHandler interface
 internal/slack/        # Slack client and tool implementations

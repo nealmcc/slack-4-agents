@@ -3,7 +3,7 @@ package mcp
 import (
 	"context"
 
-	slackclient "github.com/matillion/slack-mcp-server/internal/slack"
+	slackclient "github.com/matillion/slack-4-agents/internal/slack"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 )
@@ -73,7 +73,7 @@ func CreateServer(logger *zap.Logger, handler ToolHandler) *mcp.Server {
 	logger.Info("Starting MCP server")
 	server := mcp.NewServer(
 		&mcp.Implementation{
-			Name:    "slack-mcp",
+			Name:    "slack-4-agents",
 			Version: "1.0.0",
 		},
 		nil,
@@ -82,7 +82,7 @@ func CreateServer(logger *zap.Logger, handler ToolHandler) *mcp.Server {
 	// Wrap handler to provide enhanced error messages for auth failures
 	wrappedHandler := &errorWrappingHandler{handler: handler, logger: logger}
 	registerTools(server, wrappedHandler)
-	logger.Info("Slack MCP server initialized, starting transport")
+	logger.Info("Slack 4 Agents server initialized, starting transport")
 	return server
 }
 

@@ -139,7 +139,7 @@ func TestFetchAllChannels(t *testing.T) {
 	api := slack.New("xoxb-test-token",
 		slack.OptionAPIURL(mock.server.URL+"/"),
 	)
-	outputDir, err := os.MkdirTemp("", "slack-mcp-test-*")
+	outputDir, err := os.MkdirTemp("", "slack-4-agents-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}

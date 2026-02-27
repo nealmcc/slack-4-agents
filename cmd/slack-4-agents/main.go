@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	slackmcp "github.com/matillion/slack-mcp-server/internal/mcp"
-	slackclient "github.com/matillion/slack-mcp-server/internal/slack"
+	slackmcp "github.com/matillion/slack-4-agents/internal/mcp"
+	slackclient "github.com/matillion/slack-4-agents/internal/slack"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -84,7 +84,7 @@ func initLogger(level string, logDir string) *zap.Logger {
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		log.Fatalf("Failed to create log directory: %v", err)
 	}
-	logFileName := fmt.Sprintf("slack-mcp-%s.log", time.Now().Format("2006-01-02"))
+	logFileName := fmt.Sprintf("slack-4-agents-%s.log", time.Now().Format("2006-01-02"))
 	logFilePath := filepath.Join(logDir, logFileName)
 	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {

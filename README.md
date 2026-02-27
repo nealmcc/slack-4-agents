@@ -1,4 +1,4 @@
-# Slack MCP Server
+# Slack 4 Agents
 
 A Go-based [MCP server](https://modelcontextprotocol.io/) that provides Claude Code with read-only access to Slack. This enables Claude to search messages, read channel history, look up users, and export conversations.
 
@@ -6,15 +6,15 @@ A Go-based [MCP server](https://modelcontextprotocol.io/) that provides Claude C
 
 ### 1. Download the binary
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/matillion/slack-mcp-server/releases).
+Download the latest release for your platform from [GitHub Releases](https://github.com/matillion/slack-4-agents/releases).
 
-| Platform      | File                              |
-|---------------|-----------------------------------|
-| macOS (Apple) | `slack-mcp_darwin_arm64.tar.gz`   |
-| macOS (Intel) | `slack-mcp_darwin_amd64.tar.gz`   |
-| Linux (x64)   | `slack-mcp_linux_amd64.tar.gz`    |
-| Linux (ARM)   | `slack-mcp_linux_arm64.tar.gz`    |
-| Windows       | `slack-mcp_windows_amd64.zip`     |
+| Platform      | File                                    |
+|---------------|-----------------------------------------|
+| macOS (Apple) | `slack-4-agents_darwin_arm64.tar.gz`    |
+| macOS (Intel) | `slack-4-agents_darwin_amd64.tar.gz`    |
+| Linux (x64)   | `slack-4-agents_linux_amd64.tar.gz`    |
+| Linux (ARM)   | `slack-4-agents_linux_arm64.tar.gz`    |
+| Windows       | `slack-4-agents_windows_amd64.zip`     |
 
 ### 2. Verify the checksum
 
@@ -25,16 +25,16 @@ Download `checksums.txt` from the same release and verify:
 shasum -a 256 -c checksums.txt --ignore-missing
 
 # Windows (PowerShell)
-(Get-FileHash slack-mcp_windows_amd64.zip -Algorithm SHA256).Hash -eq `
-  (Select-String -Path checksums.txt -Pattern "slack-mcp_windows_amd64.zip").Line.Split(" ")[0]
+(Get-FileHash slack-4-agents_windows_amd64.zip -Algorithm SHA256).Hash -eq `
+  (Select-String -Path checksums.txt -Pattern "slack-4-agents_windows_amd64.zip").Line.Split(" ")[0]
 ```
 
 ### 3. Extract and install
 
 ```bash
 # macOS / Linux
-tar -xzf slack-mcp_darwin_arm64.tar.gz
-mv slack-mcp ~/bin/  # or anywhere in your PATH
+tar -xzf slack-4-agents_darwin_arm64.tar.gz
+mv slack-4-agents ~/bin/  # or anywhere in your PATH
 ```
 
 ### 4. Get Slack credentials
@@ -58,7 +58,7 @@ Add the server to your Claude Code MCP configuration (`~/.claude.json`):
 {
   "mcpServers": {
     "slack": {
-      "command": "/path/to/slack-mcp",
+      "command": "/path/to/slack-4-agents",
       "env": {
         "SLACK_TOKEN": "xoxc-your-token-here",
         "SLACK_COOKIE": "xoxd-your-cookie-here"
@@ -109,17 +109,18 @@ For bot/user OAuth tokens, you'll need these scopes:
 
 ### Data Directory
 
-The server creates `~/.claude/slack-mcp/` on startup:
+The server creates `~/.claude/servers/slack/` on startup:
 
 ```
-~/.claude/slack-mcp/
-├── slack-mcp.log      # Server logs (JSON, appended)
-└── responses/         # Tool output files (exports, large results)
+~/.claude/servers/slack/
+├── logs/
+│   └── slack-4-agents-YYYY-MM-DD.log   # Server logs (JSON, appended)
+└── responses/                           # Tool output files (exports, large results)
 ```
 
 ### Logging
 
-Logs are written to both stderr and `~/.claude/slack-mcp/slack-mcp.log`.
+Logs are written to both stderr and `~/.claude/servers/slack/logs/slack-4-agents-YYYY-MM-DD.log`.
 
 | Level   | What's logged                                            |
 |---------|----------------------------------------------------------|
@@ -140,8 +141,8 @@ Logs are written to both stderr and `~/.claude/slack-mcp/slack-mcp.log`.
 ### Setup
 
 ```bash
-git clone https://github.com/matillion/slack-mcp-server.git
-cd slack-mcp-server
+git clone https://github.com/matillion/slack-4-agents.git
+cd slack-4-agents
 make build
 ```
 
@@ -162,19 +163,19 @@ make help       # Show all available targets
 ```bash
 export SLACK_TOKEN="xoxc-..."
 export SLACK_COOKIE="xoxd-..."
-./slack-mcp
+./slack-4-agents
 ```
 
 Test the MCP protocol manually:
 
 ```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | LOG_LEVEL=debug SLACK_TOKEN=fake ./slack-mcp
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | LOG_LEVEL=debug SLACK_TOKEN=fake ./slack-4-agents
 ```
 
 ### Project Structure
 
 ```
-cmd/slack-mcp/         # Main entry point
+cmd/slack-4-agents/    # Main entry point
 internal/mcp/          # MCP server setup and tool registration
 internal/slack/        # Slack client and tool implementations
 ```

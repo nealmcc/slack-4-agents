@@ -7,18 +7,18 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${BLUE}Slack MCP Server Installer${NC}"
+echo -e "${BLUE}Slack 4 Agents Installer${NC}"
 echo ""
 
 SERVER_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_NAME="slack"
-BINARY_NAME="slack-mcp"
+BINARY_NAME="slack-4-agents"
 INSTALL_DIR="$HOME/.claude/servers/$SERVER_NAME"
 
 # --- Build ---
 
 echo "  Building $BINARY_NAME..."
-(cd "$SERVER_DIR" && go build -ldflags "-s -w" -o "$BINARY_NAME" ./cmd/slack-mcp)
+(cd "$SERVER_DIR" && go build -ldflags "-s -w" -o "$BINARY_NAME" ./cmd/slack-4-agents)
 echo -e "${GREEN}  [BUILT] $BINARY_NAME${NC}"
 
 # --- Install binary ---

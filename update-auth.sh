@@ -1,12 +1,12 @@
 #!/bin/bash
-# update-auth.sh - Update Slack MCP authentication in ~/.claude.json
+# update-auth.sh - Update Slack 4 Agents authentication in ~/.claude.json
 
 set -e
 
 CLAUDE_CONFIG="$HOME/.claude.json"
 
 echo "=========================================="
-echo "  Slack MCP Authentication Updater"
+echo "  Slack 4 Agents Authentication Updater"
 echo "=========================================="
 echo ""
 

@@ -235,7 +235,7 @@ func newTestClient(t *testing.T, mock *mockSlackServer) (*Client, *testLogger, s
 	)
 
 	// Create temp directory for response files
-	outputDir, err := os.MkdirTemp("", "slack-mcp-test-*")
+	outputDir, err := os.MkdirTemp("", "slack-4-agents-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}

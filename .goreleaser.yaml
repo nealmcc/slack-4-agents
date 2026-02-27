@@ -1,10 +1,10 @@
 version: 2
 
-project_name: slack-mcp
+project_name: slack-4-agents
 
 builds:
-  - main: ./cmd/slack-mcp
-    binary: slack-mcp
+  - main: ./cmd/slack-4-agents
+    binary: slack-4-agents
     ldflags:
       - -s -w -X main.version={{.Version}}
     goos:
@@ -29,5 +29,5 @@ checksum:
 
 release:
   github:
-    owner: matillion
-    name: slack-mcp-server
+    owner: nealmcc
+    name: slack-4-agents

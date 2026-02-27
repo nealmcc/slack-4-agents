@@ -1,9 +1,9 @@
-# Makefile for Slack MCP Server
+# Makefile for Slack 4 Agents
 
 # Binary name
-BINARY_NAME=slack-mcp
+BINARY_NAME=slack-4-agents
 # Main package path
-MAIN_PATH=./cmd/slack-mcp
+MAIN_PATH=./cmd/slack-4-agents
 # Install location
 INSTALL_PATH=$(HOME)/.claude/servers/slack
 

@@ -1,4 +1,4 @@
-module github.com/matillion/slack-mcp-server
+module github.com/matillion/slack-4-agents
 
 go 1.23.0
 

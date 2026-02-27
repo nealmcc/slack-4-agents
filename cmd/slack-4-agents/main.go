@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	slackmcp "github.com/matillion/slack-4-agents/internal/mcp"
-	slackclient "github.com/matillion/slack-4-agents/internal/slack"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	slackmcp "go.mcconachie.co/slack-4-agents/internal/mcp"
+	slackclient "go.mcconachie.co/slack-4-agents/internal/slack"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

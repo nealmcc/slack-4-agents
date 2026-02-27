@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	slackclient "github.com/matillion/slack-4-agents/internal/slack"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	slackclient "go.mcconachie.co/slack-4-agents/internal/slack"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap/zaptest"
 )

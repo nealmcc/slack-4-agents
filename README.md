@@ -6,7 +6,7 @@ A Go-based [MCP server](https://modelcontextprotocol.io/) that provides Claude C
 
 ### 1. Download the binary
 
-Download the latest release for your platform from [GitHub Releases](https://github.com/matillion/slack-4-agents/releases).
+Download the latest release for your platform from [GitHub Releases](https://github.com/nealmcc/slack-4-agents/releases).
 
 | Platform      | File                                    |
 |---------------|-----------------------------------------|
@@ -141,7 +141,7 @@ Logs are written to both stderr and `~/.claude/servers/slack/logs/slack-4-agents
 ### Setup
 
 ```bash
-git clone https://github.com/matillion/slack-4-agents.git
+git clone https://github.com/nealmcc/slack-4-agents.git
 cd slack-4-agents
 make build
 ```

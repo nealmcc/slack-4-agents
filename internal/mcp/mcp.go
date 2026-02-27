@@ -3,8 +3,8 @@ package mcp
 import (
 	"context"
 
-	slackclient "github.com/matillion/slack-4-agents/internal/slack"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	slackclient "go.mcconachie.co/slack-4-agents/internal/slack"
 	"go.uber.org/zap"
 )
 

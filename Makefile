@@ -5,7 +5,7 @@ BINARY_NAME=slack-mcp
 # Main package path
 MAIN_PATH=./cmd/slack-mcp
 # Install location
-INSTALL_PATH=$(HOME)/bin
+INSTALL_PATH=$(HOME)/.claude/servers/slack
 
 # Go commands
 GOCMD=go
@@ -33,12 +33,9 @@ build-release:
 	@echo "Building $(BINARY_NAME) with optimizations..."
 	$(GOBUILD) $(LDFLAGS) -o $(BINARY_NAME) $(MAIN_PATH)
 
-# Install the binary to $(INSTALL_PATH)
-install: build-release
-	@echo "Installing $(BINARY_NAME) to $(INSTALL_PATH)..."
-	@mkdir -p $(INSTALL_PATH)
-	@cp $(BINARY_NAME) $(INSTALL_PATH)/$(BINARY_NAME)
-	@echo "Installed to $(INSTALL_PATH)/$(BINARY_NAME)"
+# Install the binary and register with Claude Code
+install:
+	@./install.sh
 
 # Run tests
 test:
@@ -94,7 +91,7 @@ help:
 	@echo "Available targets:"
 	@echo "  make build          - Build the binary"
 	@echo "  make build-release  - Build optimized binary"
-	@echo "  make install        - Install binary to ~/.local/bin"
+	@echo "  make install        - Install binary and register MCP server"
 	@echo "  make test           - Run tests"
 	@echo "  make cover          - Run tests with coverage report"
 	@echo "  make vet            - Run go vet"

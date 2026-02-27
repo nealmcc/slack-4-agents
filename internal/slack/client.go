@@ -59,7 +59,7 @@ type ResponseWriter interface {
 
 type Client struct {
 	api       SlackAPI
-	channelID map[string]string // cache: name -> ID
+	cache     *channelCache
 	logger    *zap.Logger
 	responses ResponseWriter
 }
@@ -85,7 +85,7 @@ func NewClient(cfg Config, logger *zap.Logger, responses ResponseWriter) (*Clien
 
 	return &Client{
 		api:       api,
-		channelID: make(map[string]string),
+		cache:     newChannelCache(),
 		logger:    logger,
 		responses: responses,
 	}, nil
@@ -98,7 +98,7 @@ func newClientWithAPI(api SlackAPI, logger *zap.Logger, responses ResponseWriter
 	}
 	return &Client{
 		api:       api,
-		channelID: make(map[string]string),
+		cache:     newChannelCache(),
 		logger:    logger,
 		responses: responses,
 	}
@@ -144,7 +144,7 @@ func (c *Client) GetChannelID(ctx context.Context, channelOrName string) (string
 			return "", fmt.Errorf("invalid channel ID: %w", err)
 		}
 		// Cache the name -> ID mapping for future lookups
-		c.channelID[strings.ToLower(channel.Name)] = channel.ID
+		c.cache.Set(strings.ToLower(channel.Name), channel.ID)
 		c.logger.Debug("Channel ID validated and cached",
 			zap.String("channel_id", channel.ID),
 			zap.String("channel_name", channel.Name))
@@ -170,7 +170,7 @@ func (c *Client) findChannelID(ctx context.Context, name string) (string, error)
 	name = strings.ToLower(name)
 
 	// Check cache
-	if id, ok := c.channelID[name]; ok {
+	if id, ok := c.cache.Get(name); ok {
 		c.logger.Debug("Channel found in cache",
 			zap.String("channel_name", name),
 			zap.String("channel_id", id))
@@ -245,7 +245,7 @@ func (c *Client) findChannelID(ctx context.Context, name string) (string, error)
 
 		// Add all channels from this page to cache and check for target
 		for _, ch := range page.channels {
-			c.channelID[ch.Name] = ch.ID
+			c.cache.Set(ch.Name, ch.ID)
 			if ch.Name == name {
 				cancel() // Stop the fetcher goroutine
 				c.logger.Info("Channel found",

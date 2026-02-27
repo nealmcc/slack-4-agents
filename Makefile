@@ -43,12 +43,12 @@ install: build-release
 # Run tests
 test:
 	@echo "Running tests..."
-	$(GOTEST) -v ./...
+	$(GOTEST) -race -v ./...
 
 # Run tests with coverage (excluding mock files)
 cover:
 	@echo "Running tests with coverage..."
-	$(GOTEST) -v -coverprofile=coverage.raw.out ./...
+	$(GOTEST) -race -v -coverprofile=coverage.raw.out ./...
 	@grep -v '_mocks' coverage.raw.out > coverage.out
 	$(GOCMD) tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"

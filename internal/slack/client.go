@@ -84,19 +84,10 @@ func NewClient(cfg Config, logger *zap.Logger, responses ResponseWriter) (*Clien
 
 	c := &Client{
 		api:       api,
+		index:     newIndex(),
 		logger:    logger,
 		responses: responses,
 	}
-
-	channels, err := c.fetchAllChannels(context.Background())
-	if err != nil {
-		logger.Warn("Failed to populate channel index at startup; name lookups will fail",
-			zap.Error(err))
-	}
-	c.index = newIndex(channels)
-
-	logger.Info("Slack client initialized",
-		zap.Int("indexed_channels", len(channels)))
 
 	return c, nil
 }
@@ -107,7 +98,7 @@ func newClientWithAPI(api SlackAPI, index *channelIndex, logger *zap.Logger, res
 		logger = zap.NewNop()
 	}
 	if index == nil {
-		index = newIndex([]slack.Channel{})
+		index = newIndex()
 	}
 	return &Client{
 		api:       api,
@@ -148,14 +139,62 @@ func isChannelID(s string) bool {
 	return true
 }
 
-// findChannelID looks up a channel name in the pre-populated index
+// listConversations wraps the Slack API call and feeds the channel index.
+func (c *Client) listConversations(ctx context.Context, params *slack.GetConversationsParameters) ([]slack.Channel, string, error) {
+	channels, cursor, err := c.api.GetConversationsContext(ctx, params)
+	if err != nil {
+		return nil, "", err
+	}
+	c.index.Add(channels)
+	return channels, cursor, nil
+}
+
+// searchMessages wraps the Slack API call and feeds the channel index.
+func (c *Client) searchMessages(ctx context.Context, query string, params slack.SearchParameters) (*slack.SearchMessages, error) {
+	results, err := c.api.SearchMessagesContext(ctx, query, params)
+	if err != nil {
+		return nil, err
+	}
+	channels := make([]slack.Channel, 0, len(results.Matches))
+	for _, match := range results.Matches {
+		channels = append(channels, slack.Channel{
+			GroupConversation: slack.GroupConversation{
+				Conversation: slack.Conversation{
+					ID:             match.Channel.ID,
+					NameNormalized: match.Channel.Name,
+				},
+				Name: match.Channel.Name,
+			},
+		})
+	}
+	c.index.Add(channels)
+	return results, nil
+}
+
+// getConversationInfo wraps the Slack API call and feeds the channel index.
+func (c *Client) getConversationInfo(ctx context.Context, channelID string) (*slack.Channel, error) {
+	var ch *slack.Channel
+	err := withRetry(ctx, c.logger, func() error {
+		var e error
+		ch, e = c.api.GetConversationInfoContext(ctx, &slack.GetConversationInfoInput{
+			ChannelID: channelID,
+		})
+		return e
+	})
+	if err != nil {
+		return nil, err
+	}
+	c.index.Add([]slack.Channel{*ch})
+	return ch, nil
+}
+
+// findChannelID looks up a channel name in the index
 func (c *Client) findChannelID(name string) (string, error) {
 	name = strings.TrimPrefix(name, "#")
 
 	ch, ok := c.index.GetByName(name)
 	if !ok {
-		c.logger.Sugar().Infow("can't find channel", "name", name, "index", c.index.names)
-		return "", fmt.Errorf("channel not found: %s (index has %d entries)", name, c.index.Size())
+		return "", fmt.Errorf("channel %q not found in index (%d entries); use a channel ID or call slack_list_channels first", name, c.index.Size())
 	}
 
 	c.logger.Debug("Channel found in index",
@@ -163,63 +202,4 @@ func (c *Client) findChannelID(name string) (string, error) {
 		zap.String("channel_id", ch.ID))
 
 	return ch.ID, nil
-}
-
-// fetchAllChannels paginates through all workspace channels, and returns a slice of all channels for indexing
-func (c *Client) fetchAllChannels(ctx context.Context) ([]slack.Channel, error) {
-	var (
-		channels  = make([]slack.Channel, 0, 2000)
-		cursor    = ""
-		pageCount = 0
-	)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-			var (
-				page       []slack.Channel
-				nextCursor string
-				err        error
-			)
-
-			if page, nextCursor, err = c.getPageOfChannels(ctx, cursor, true); err != nil {
-				return nil, fmt.Errorf("failed to get channels: %s", err)
-			}
-
-			pageCount++
-			channels = append(channels, page...)
-
-			c.logger.Debug("Fetched channel page",
-				zap.Int("page", pageCount),
-				zap.Int("channels_in_page", len(page)),
-				zap.Int("total_channels", len(channels)))
-
-			cursor = nextCursor
-			if cursor == "" {
-				break
-			}
-		}
-		c.logger.Info("Channel index populated",
-			zap.Int("total_channels", len(channels)),
-			zap.Int("pages", pageCount))
-
-		return channels, nil
-	}
-}
-
-func (c *Client) getPageOfChannels(ctx context.Context, cursor string, includeArchived bool,
-) (page []slack.Channel, nextCursor string, err error) {
-	err = withRetry(ctx, c.logger, func() error {
-		p, nc, err2 := c.api.GetConversationsContext(ctx, &slack.GetConversationsParameters{
-			Types:           []string{"public_channel", "private_channel", "mpim", "im"},
-			ExcludeArchived: !includeArchived,
-			Limit:           1000,
-			Cursor:          cursor,
-		})
-		page, nextCursor = p, nc
-		return err2
-	})
-	return
 }

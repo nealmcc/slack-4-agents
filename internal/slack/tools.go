@@ -64,7 +64,7 @@ func (c *Client) ListChannels(ctx context.Context, req *mcp.CallToolRequest, inp
 		Cursor: input.Cursor,
 	}
 
-	channels, cursor, err := c.api.GetConversationsContext(ctx, params)
+	channels, cursor, err := c.listConversations(ctx, params)
 	if err != nil {
 		return nil, ListChannelsOutput{}, fmt.Errorf("failed to list channels: %w", err)
 	}
@@ -232,7 +232,7 @@ func (c *Client) SearchMessages(ctx context.Context, req *mcp.CallToolRequest, i
 		Count:         count,
 	}
 
-	results, err := c.api.SearchMessagesContext(ctx, input.Query, params)
+	results, err := c.searchMessages(ctx, input.Query, params)
 	if err != nil {
 		return nil, SearchMessagesOutput{}, fmt.Errorf("failed to search: %w", err)
 	}
@@ -464,14 +464,7 @@ func (c *Client) ReadCanvas(ctx context.Context, req *mcp.CallToolRequest, input
 			return nil, ReadCanvasOutput{}, err
 		}
 
-		var ch *slack.Channel
-		err = withRetry(ctx, c.logger, func() error {
-			var e error
-			ch, e = c.api.GetConversationInfoContext(ctx, &slack.GetConversationInfoInput{
-				ChannelID: channelID,
-			})
-			return e
-		})
+		ch, err := c.getConversationInfo(ctx, channelID)
 		if err != nil {
 			return nil, ReadCanvasOutput{}, fmt.Errorf("failed to get channel info: %w", err)
 		}

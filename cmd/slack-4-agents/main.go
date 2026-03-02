@@ -39,7 +39,7 @@ func createConfig() slackclient.Config {
 		log.Fatalf("Failed to get home directory: %v", err)
 	}
 
-	baseDir := filepath.Join(homeDir, ".claude", "servers", "slack")
+	baseDir := filepath.Join(homeDir, ".claude", "servers", "slack-4-agents")
 	cfg := slackclient.Config{
 		Token:    os.Getenv("SLACK_TOKEN"),
 		Cookie:   os.Getenv("SLACK_COOKIE"),

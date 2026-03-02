@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/slack-go/slack"
@@ -19,8 +20,8 @@ type cookieTransport struct {
 
 func (t *cookieTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Set("Cookie", "d="+t.cookie)
-	t.logger.Debug("Making HTTP request with cookie authentication",
-		zap.String("method", req.Method),
+	t.logger.Debug("Slack API request",
+		zap.String("api_method", path.Base(req.URL.Path)),
 		zap.String("url", req.URL.String()))
 	return t.transport.RoundTrip(req)
 }

@@ -69,7 +69,7 @@ cp "$CLAUDE_CONFIG" "$CLAUDE_CONFIG.bak"
 
 # Update the values using jq
 jq --arg token "$SLACK_TOKEN" --arg cookie "$SLACK_COOKIE" \
-   '.mcpServers.slack.env.SLACK_TOKEN = $token | .mcpServers.slack.env.SLACK_COOKIE = $cookie' \
+   '.mcpServers["slack-4-agents"].env.SLACK_TOKEN = $token | .mcpServers["slack-4-agents"].env.SLACK_COOKIE = $cookie' \
    "$CLAUDE_CONFIG" > "$CLAUDE_CONFIG.tmp" && mv "$CLAUDE_CONFIG.tmp" "$CLAUDE_CONFIG"
 
 echo "Done! Backup saved to $CLAUDE_CONFIG.bak"

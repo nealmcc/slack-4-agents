@@ -16,26 +16,26 @@ var authErrorCodes = map[string]string{
 	"not_authed":       "No authentication token provided. Please set SLACK_TOKEN and SLACK_COOKIE.",
 }
 
-// AuthError represents a Slack authentication error with guidance for resolution
-type AuthError struct {
+// authError represents a Slack authentication error with guidance for resolution
+type authError struct {
 	Code    string
 	Message string
 }
 
-func (e *AuthError) Error() string {
+func (e *authError) Error() string {
 	return fmt.Sprintf("SLACK AUTHENTICATION ERROR: %s (code: %s)", e.Message, e.Code)
 }
 
 // matchAuthError checks if an error contains an auth error code.
 // Returns nil if no auth error is found.
-func matchAuthError(err error) *AuthError {
+func matchAuthError(err error) *authError {
 	if err == nil {
 		return nil
 	}
 	errStr := err.Error()
 	for code, message := range authErrorCodes {
 		if strings.Contains(errStr, code) {
-			return &AuthError{Code: code, Message: message}
+			return &authError{Code: code, Message: message}
 		}
 	}
 	return nil

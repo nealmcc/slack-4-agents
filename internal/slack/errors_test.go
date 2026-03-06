@@ -68,7 +68,7 @@ func TestMatchAuthError(t *testing.T) {
 				return
 			}
 			if got == nil {
-				t.Fatalf("matchAuthError() = nil, want AuthError")
+				t.Fatalf("matchAuthError() = nil, want authError")
 			}
 			if got.Code != tt.wantCode {
 				t.Errorf("matchAuthError().Code = %q, want %q", got.Code, tt.wantCode)
@@ -80,15 +80,15 @@ func TestMatchAuthError(t *testing.T) {
 	}
 }
 
-func TestWrapError_AuthError(t *testing.T) {
+func TestWrapError_WhenAuthError_ReturnsAuthError(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	err := errors.New("invalid_auth")
 
 	wrapped := WrapError(logger, "test operation", err)
 
-	var authErr *AuthError
+	var authErr *authError
 	if !errors.As(wrapped, &authErr) {
-		t.Fatalf("expected AuthError, got %T", wrapped)
+		t.Fatalf("expected authError, got %T", wrapped)
 	}
 
 	if authErr.Code != "invalid_auth" {
@@ -101,15 +101,15 @@ func TestWrapError_AuthError(t *testing.T) {
 	}
 }
 
-func TestWrapError_NonAuthError(t *testing.T) {
+func TestWrapError_WhenNonAuthError_WrapsOriginal(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	originalErr := errors.New("channel_not_found")
 
 	wrapped := WrapError(logger, "test operation", originalErr)
 
-	var authErr *AuthError
+	var authErr *authError
 	if errors.As(wrapped, &authErr) {
-		t.Fatalf("expected non-AuthError, got AuthError")
+		t.Fatalf("expected non-authError, got authError")
 	}
 
 	wantErrStr := "test operation: channel_not_found"
@@ -118,7 +118,7 @@ func TestWrapError_NonAuthError(t *testing.T) {
 	}
 }
 
-func TestWrapError_NilError(t *testing.T) {
+func TestWrapError_WhenNil_ReturnsNil(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 
 	wrapped := WrapError(logger, "test operation", nil)
@@ -128,8 +128,8 @@ func TestWrapError_NilError(t *testing.T) {
 	}
 }
 
-func TestAuthError_Error(t *testing.T) {
-	err := &AuthError{
+func TestAuthError_Error_FormatsCodeAndMessage(t *testing.T) {
+	err := &authError{
 		Code:    "invalid_auth",
 		Message: "Test message",
 	}

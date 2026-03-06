@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 
 	"github.com/slack-go/slack"
@@ -13,7 +12,7 @@ import (
 
 // SlackAPI defines the Slack API methods used by the client
 //
-//go:generate go tool mockgen -source=$GOFILE -destination=client_mocks.go -package=slack
+//go:generate go tool mockgen -source=$GOFILE -destination=service_mocks.go -package=slack
 type SlackAPI interface {
 	GetConversationsContext(ctx context.Context, params *slack.GetConversationsParameters) ([]slack.Channel, string, error)
 	GetConversationInfoContext(ctx context.Context, input *slack.GetConversationInfoInput) (*slack.Channel, error)
@@ -25,15 +24,6 @@ type SlackAPI interface {
 	GetPermalinkContext(ctx context.Context, params *slack.PermalinkParameters) (string, error)
 	GetFileInfoContext(ctx context.Context, fileID string, count int, page int) (*slack.File, []slack.Comment, *slack.Paging, error)
 	GetFileContext(ctx context.Context, downloadURL string, writer io.Writer) error
-}
-
-// Config holds configuration for the Slack client
-type Config struct {
-	Token    string // Slack API token (required)
-	Cookie   string // Slack cookie for xoxc token auth (optional)
-	LogLevel string // "debug", "info", "warn", "error"
-	WorkDir  string // the path to the working directory for this client
-	LogDir   string // the path to the log output directory
 }
 
 // FileRef describes a file written by ResponseWriter
@@ -58,58 +48,25 @@ type ResponseWriter interface {
 	Dir() string
 }
 
-type Client struct {
+type Service struct {
 	api       SlackAPI
 	index     *channelIndex
 	logger    *zap.Logger
 	responses ResponseWriter
 }
 
-func NewClient(cfg Config, logger *zap.Logger, responses ResponseWriter) (*Client, error) {
-	if cfg.Token == "" {
-		return nil, fmt.Errorf("slack token is required")
-	}
-
-	opts := []slack.Option{}
-
-	if cfg.Cookie != "" {
-		logger.Info("Using cookie authentication for Slack client")
-		httpClient := &http.Client{
-			Transport: newCookieTransport(cfg.Cookie, logger),
-		}
-		opts = append(opts, slack.OptionHTTPClient(httpClient))
-	}
-
-	api := slack.New(cfg.Token, opts...)
-
-	c := &Client{
+// NewService creates a service-layer client with pre-built dependencies
+func NewService(api SlackAPI, logger *zap.Logger, responses ResponseWriter) *Service {
+	return &Service{
 		api:       api,
 		index:     newIndex(),
-		logger:    logger,
-		responses: responses,
-	}
-
-	return c, nil
-}
-
-// newClientWithAPI creates a client with a given SlackAPI (for testing)
-func newClientWithAPI(api SlackAPI, index *channelIndex, logger *zap.Logger, responses ResponseWriter) *Client {
-	if logger == nil {
-		logger = zap.NewNop()
-	}
-	if index == nil {
-		index = newIndex()
-	}
-	return &Client{
-		api:       api,
-		index:     index,
 		logger:    logger,
 		responses: responses,
 	}
 }
 
 // GetChannelID accepts either a channel name or ID and returns the channel ID
-func (c *Client) GetChannelID(channelOrName string) (string, error) {
+func (c *Service) GetChannelID(channelOrName string) (string, error) {
 	if isChannelID(channelOrName) {
 		return channelOrName, nil
 	}
@@ -140,7 +97,7 @@ func isChannelID(s string) bool {
 }
 
 // listConversations wraps the Slack API call and feeds the channel index.
-func (c *Client) listConversations(ctx context.Context, params *slack.GetConversationsParameters) ([]slack.Channel, string, error) {
+func (c *Service) listConversations(ctx context.Context, params *slack.GetConversationsParameters) ([]slack.Channel, string, error) {
 	channels, cursor, err := c.api.GetConversationsContext(ctx, params)
 	if err != nil {
 		return nil, "", err
@@ -150,7 +107,7 @@ func (c *Client) listConversations(ctx context.Context, params *slack.GetConvers
 }
 
 // searchMessages wraps the Slack API call and feeds the channel index.
-func (c *Client) searchMessages(ctx context.Context, query string, params slack.SearchParameters) (*slack.SearchMessages, error) {
+func (c *Service) searchMessages(ctx context.Context, query string, params slack.SearchParameters) (*slack.SearchMessages, error) {
 	results, err := c.api.SearchMessagesContext(ctx, query, params)
 	if err != nil {
 		return nil, err
@@ -172,7 +129,7 @@ func (c *Client) searchMessages(ctx context.Context, query string, params slack.
 }
 
 // getConversationInfo wraps the Slack API call and feeds the channel index.
-func (c *Client) getConversationInfo(ctx context.Context, channelID string) (*slack.Channel, error) {
+func (c *Service) getConversationInfo(ctx context.Context, channelID string) (*slack.Channel, error) {
 	var ch *slack.Channel
 	err := withRetry(ctx, c.logger, func() error {
 		var e error
@@ -189,7 +146,7 @@ func (c *Client) getConversationInfo(ctx context.Context, channelID string) (*sl
 }
 
 // findChannelID looks up a channel name in the index
-func (c *Client) findChannelID(name string) (string, error) {
+func (c *Service) findChannelID(name string) (string, error) {
 	name = strings.TrimPrefix(name, "#")
 
 	ch, ok := c.index.GetByName(name)

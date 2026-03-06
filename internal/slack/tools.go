@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/slack-go/slack"
 )
 
@@ -43,8 +42,7 @@ type ListChannelsOutput struct {
 }
 
 // ListChannels lists channels the user has access to
-// Results are written to a response file and a summary is returned to save tokens
-func (c *Client) ListChannels(ctx context.Context, req *mcp.CallToolRequest, input ListChannelsInput) (*mcp.CallToolResult, ListChannelsOutput, error) {
+func (c *Service) ListChannels(ctx context.Context, input ListChannelsInput) (ListChannelsOutput, error) {
 	types := []string{"public_channel", "private_channel"}
 	if input.Types != "" {
 		types = strings.Split(input.Types, ",")
@@ -66,10 +64,9 @@ func (c *Client) ListChannels(ctx context.Context, req *mcp.CallToolRequest, inp
 
 	channels, cursor, err := c.listConversations(ctx, params)
 	if err != nil {
-		return nil, ListChannelsOutput{}, fmt.Errorf("failed to list channels: %w", err)
+		return ListChannelsOutput{}, fmt.Errorf("failed to list channels: %w", err)
 	}
 
-	// Convert to ChannelInfo slice
 	channelInfos := make([]ChannelInfo, 0, len(channels))
 	for _, ch := range channels {
 		channelInfos = append(channelInfos, ChannelInfo{
@@ -83,13 +80,11 @@ func (c *Client) ListChannels(ctx context.Context, req *mcp.CallToolRequest, inp
 		})
 	}
 
-	// Write full results to file
 	fileRef, err := c.responses.WriteJSON("channels", channelInfos)
 	if err != nil {
-		return nil, ListChannelsOutput{}, fmt.Errorf("failed to write response: %w", err)
+		return ListChannelsOutput{}, fmt.Errorf("failed to write response: %w", err)
 	}
 
-	// Build summary output
 	output := ListChannelsOutput{
 		File:       fileRef,
 		TotalCount: len(channelInfos),
@@ -101,7 +96,7 @@ func (c *Client) ListChannels(ctx context.Context, req *mcp.CallToolRequest, inp
 		output.LastChannel = &channelInfos[len(channelInfos)-1]
 	}
 
-	return nil, output, nil
+	return output, nil
 }
 
 // ReadHistoryInput defines input for reading channel history
@@ -130,10 +125,10 @@ type ReadHistoryOutput struct {
 }
 
 // ReadHistory reads message history from a channel
-func (c *Client) ReadHistory(ctx context.Context, req *mcp.CallToolRequest, input ReadHistoryInput) (*mcp.CallToolResult, ReadHistoryOutput, error) {
+func (c *Service) ReadHistory(ctx context.Context, input ReadHistoryInput) (ReadHistoryOutput, error) {
 	channelID, err := c.GetChannelID(input.Channel)
 	if err != nil {
-		return nil, ReadHistoryOutput{}, err
+		return ReadHistoryOutput{}, err
 	}
 
 	limit := 20
@@ -150,7 +145,7 @@ func (c *Client) ReadHistory(ctx context.Context, req *mcp.CallToolRequest, inpu
 
 	history, err := c.api.GetConversationHistoryContext(ctx, params)
 	if err != nil {
-		return nil, ReadHistoryOutput{}, fmt.Errorf("failed to get history: %w", err)
+		return ReadHistoryOutput{}, fmt.Errorf("failed to get history: %w", err)
 	}
 
 	output := ReadHistoryOutput{
@@ -159,7 +154,6 @@ func (c *Client) ReadHistory(ctx context.Context, req *mcp.CallToolRequest, inpu
 		HasMore:   history.HasMore,
 	}
 
-	// Collect user IDs to fetch names
 	userIDs := make(map[string]bool)
 	for _, msg := range history.Messages {
 		if msg.User != "" {
@@ -167,7 +161,6 @@ func (c *Client) ReadHistory(ctx context.Context, req *mcp.CallToolRequest, inpu
 		}
 	}
 
-	// Fetch user names
 	userNames := make(map[string]string)
 	for userID := range userIDs {
 		user, err := c.api.GetUserInfoContext(ctx, userID)
@@ -187,7 +180,7 @@ func (c *Client) ReadHistory(ctx context.Context, req *mcp.CallToolRequest, inpu
 		})
 	}
 
-	return nil, output, nil
+	return output, nil
 }
 
 // SearchMessagesInput defines input for searching messages
@@ -215,7 +208,7 @@ type SearchMessagesOutput struct {
 }
 
 // SearchMessages searches messages across the workspace
-func (c *Client) SearchMessages(ctx context.Context, req *mcp.CallToolRequest, input SearchMessagesInput) (*mcp.CallToolResult, SearchMessagesOutput, error) {
+func (c *Service) SearchMessages(ctx context.Context, input SearchMessagesInput) (SearchMessagesOutput, error) {
 	count := 20
 	if input.Count > 0 && input.Count <= 100 {
 		count = input.Count
@@ -234,7 +227,7 @@ func (c *Client) SearchMessages(ctx context.Context, req *mcp.CallToolRequest, i
 
 	results, err := c.searchMessages(ctx, input.Query, params)
 	if err != nil {
-		return nil, SearchMessagesOutput{}, fmt.Errorf("failed to search: %w", err)
+		return SearchMessagesOutput{}, fmt.Errorf("failed to search: %w", err)
 	}
 
 	output := SearchMessagesOutput{
@@ -254,7 +247,7 @@ func (c *Client) SearchMessages(ctx context.Context, req *mcp.CallToolRequest, i
 		})
 	}
 
-	return nil, output, nil
+	return output, nil
 }
 
 // GetUserInput defines input for getting user info
@@ -284,7 +277,7 @@ type GetUserOutput struct {
 }
 
 // GetUser looks up user information by ID or email
-func (c *Client) GetUser(ctx context.Context, req *mcp.CallToolRequest, input GetUserInput) (*mcp.CallToolResult, GetUserOutput, error) {
+func (c *Service) GetUser(ctx context.Context, input GetUserInput) (GetUserOutput, error) {
 	var user *slack.User
 	var err error
 
@@ -293,11 +286,11 @@ func (c *Client) GetUser(ctx context.Context, req *mcp.CallToolRequest, input Ge
 	} else if input.Email != "" {
 		user, err = c.api.GetUserByEmailContext(ctx, input.Email)
 	} else {
-		return nil, GetUserOutput{}, fmt.Errorf("either user ID or email is required")
+		return GetUserOutput{}, fmt.Errorf("either user ID or email is required")
 	}
 
 	if err != nil {
-		return nil, GetUserOutput{}, fmt.Errorf("failed to get user: %w", err)
+		return GetUserOutput{}, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	output := GetUserOutput{
@@ -316,7 +309,7 @@ func (c *Client) GetUser(ctx context.Context, req *mcp.CallToolRequest, input Ge
 		},
 	}
 
-	return nil, output, nil
+	return output, nil
 }
 
 // GetPermalinkInput defines input for getting a message permalink
@@ -333,10 +326,10 @@ type GetPermalinkOutput struct {
 }
 
 // GetPermalink gets a permalink to a specific message
-func (c *Client) GetPermalink(ctx context.Context, req *mcp.CallToolRequest, input GetPermalinkInput) (*mcp.CallToolResult, GetPermalinkOutput, error) {
+func (c *Service) GetPermalink(ctx context.Context, input GetPermalinkInput) (GetPermalinkOutput, error) {
 	channelID, err := c.GetChannelID(input.Channel)
 	if err != nil {
-		return nil, GetPermalinkOutput{}, err
+		return GetPermalinkOutput{}, err
 	}
 
 	permalink, err := c.api.GetPermalinkContext(ctx, &slack.PermalinkParameters{
@@ -344,10 +337,10 @@ func (c *Client) GetPermalink(ctx context.Context, req *mcp.CallToolRequest, inp
 		Ts:      input.Timestamp,
 	})
 	if err != nil {
-		return nil, GetPermalinkOutput{}, fmt.Errorf("failed to get permalink: %w", err)
+		return GetPermalinkOutput{}, fmt.Errorf("failed to get permalink: %w", err)
 	}
 
-	return nil, GetPermalinkOutput{
+	return GetPermalinkOutput{
 		Permalink: permalink,
 		Channel:   channelID,
 		Timestamp: input.Timestamp,
@@ -372,10 +365,10 @@ type ReadThreadOutput struct {
 }
 
 // ReadThread reads all replies in a thread
-func (c *Client) ReadThread(ctx context.Context, req *mcp.CallToolRequest, input ReadThreadInput) (*mcp.CallToolResult, ReadThreadOutput, error) {
+func (c *Service) ReadThread(ctx context.Context, input ReadThreadInput) (ReadThreadOutput, error) {
 	channelID, err := c.GetChannelID(input.Channel)
 	if err != nil {
-		return nil, ReadThreadOutput{}, err
+		return ReadThreadOutput{}, err
 	}
 
 	limit := 100
@@ -392,7 +385,7 @@ func (c *Client) ReadThread(ctx context.Context, req *mcp.CallToolRequest, input
 
 	messages, hasMore, nextCursor, err := c.api.GetConversationRepliesContext(ctx, params)
 	if err != nil {
-		return nil, ReadThreadOutput{}, fmt.Errorf("failed to get thread replies: %w", err)
+		return ReadThreadOutput{}, fmt.Errorf("failed to get thread replies: %w", err)
 	}
 
 	output := ReadThreadOutput{
@@ -403,7 +396,6 @@ func (c *Client) ReadThread(ctx context.Context, req *mcp.CallToolRequest, input
 		NextCursor:      nextCursor,
 	}
 
-	// Collect user IDs to fetch names
 	userIDs := make(map[string]bool)
 	for _, msg := range messages {
 		if msg.User != "" {
@@ -411,7 +403,6 @@ func (c *Client) ReadThread(ctx context.Context, req *mcp.CallToolRequest, input
 		}
 	}
 
-	// Fetch user names
 	userNames := make(map[string]string)
 	for userID := range userIDs {
 		user, err := c.api.GetUserInfoContext(ctx, userID)
@@ -431,7 +422,7 @@ func (c *Client) ReadThread(ctx context.Context, req *mcp.CallToolRequest, input
 		})
 	}
 
-	return nil, output, nil
+	return output, nil
 }
 
 // ReadCanvasInput defines input for reading a Slack canvas
@@ -448,12 +439,12 @@ type ReadCanvasOutput struct {
 }
 
 // ReadCanvas reads a Slack canvas and returns its content as plain text
-func (c *Client) ReadCanvas(ctx context.Context, req *mcp.CallToolRequest, input ReadCanvasInput) (*mcp.CallToolResult, ReadCanvasOutput, error) {
+func (c *Service) ReadCanvas(ctx context.Context, input ReadCanvasInput) (ReadCanvasOutput, error) {
 	if input.Channel == "" && input.FileID == "" {
-		return nil, ReadCanvasOutput{}, fmt.Errorf("either channel or file_id is required")
+		return ReadCanvasOutput{}, fmt.Errorf("either channel or file_id is required")
 	}
 	if input.Channel != "" && input.FileID != "" {
-		return nil, ReadCanvasOutput{}, fmt.Errorf("provide either channel or file_id, not both")
+		return ReadCanvasOutput{}, fmt.Errorf("provide either channel or file_id, not both")
 	}
 
 	fileID := input.FileID
@@ -461,16 +452,16 @@ func (c *Client) ReadCanvas(ctx context.Context, req *mcp.CallToolRequest, input
 	if input.Channel != "" {
 		channelID, err := c.GetChannelID(input.Channel)
 		if err != nil {
-			return nil, ReadCanvasOutput{}, err
+			return ReadCanvasOutput{}, err
 		}
 
 		ch, err := c.getConversationInfo(ctx, channelID)
 		if err != nil {
-			return nil, ReadCanvasOutput{}, fmt.Errorf("failed to get channel info: %w", err)
+			return ReadCanvasOutput{}, fmt.Errorf("failed to get channel info: %w", err)
 		}
 
 		if ch.Properties == nil || ch.Properties.Canvas.FileId == "" {
-			return nil, ReadCanvasOutput{}, fmt.Errorf("channel has no canvas")
+			return ReadCanvasOutput{}, fmt.Errorf("channel has no canvas")
 		}
 		fileID = ch.Properties.Canvas.FileId
 	}
@@ -482,11 +473,11 @@ func (c *Client) ReadCanvas(ctx context.Context, req *mcp.CallToolRequest, input
 		return e
 	})
 	if err != nil {
-		return nil, ReadCanvasOutput{}, fmt.Errorf("failed to get file info: %w", err)
+		return ReadCanvasOutput{}, fmt.Errorf("failed to get file info: %w", err)
 	}
 
 	if file.Filetype != "quip" {
-		return nil, ReadCanvasOutput{}, fmt.Errorf("file is not a canvas (filetype %q, expected \"quip\")", file.Filetype)
+		return ReadCanvasOutput{}, fmt.Errorf("file is not a canvas (filetype %q, expected \"quip\")", file.Filetype)
 	}
 
 	var buf bytes.Buffer
@@ -495,17 +486,17 @@ func (c *Client) ReadCanvas(ctx context.Context, req *mcp.CallToolRequest, input
 		return c.api.GetFileContext(ctx, file.URLPrivateDownload, &buf)
 	})
 	if err != nil {
-		return nil, ReadCanvasOutput{}, fmt.Errorf("failed to download canvas: %w", err)
+		return ReadCanvasOutput{}, fmt.Errorf("failed to download canvas: %w", err)
 	}
 
 	text := stripHTML(buf.String())
 
 	ref, err := c.responses.WriteText("canvas", text)
 	if err != nil {
-		return nil, ReadCanvasOutput{}, fmt.Errorf("failed to write response: %w", err)
+		return ReadCanvasOutput{}, fmt.Errorf("failed to write response: %w", err)
 	}
 
-	return nil, ReadCanvasOutput{
+	return ReadCanvasOutput{
 		File:   ref,
 		FileID: fileID,
 		Title:  file.Title,
@@ -591,7 +582,7 @@ func buildExportMessage(msg slack.Message, threadTs Timestamp, userName string) 
 }
 
 // writeThreadFile writes a complete thread (parent + replies) to a separate file
-func (c *Client) writeThreadFile(
+func (c *Service) writeThreadFile(
 	ctx context.Context,
 	channelID string,
 	parentMsg slack.Message,
@@ -684,12 +675,10 @@ type ReactionInfo struct {
 }
 
 // ExportChannel exports a channel's messages to JSON-lines format.
-// The main file contains top-level messages in chronological order (oldest first).
-// Each thread gets its own separate file containing the parent and all replies.
-func (c *Client) ExportChannel(ctx context.Context, req *mcp.CallToolRequest, input ExportChannelInput) (*mcp.CallToolResult, ExportChannelOutput, error) {
+func (c *Service) ExportChannel(ctx context.Context, input ExportChannelInput) (ExportChannelOutput, error) {
 	channelID, err := c.GetChannelID(input.Channel)
 	if err != nil {
-		return nil, ExportChannelOutput{}, err
+		return ExportChannelOutput{}, err
 	}
 
 	stats := newExportStats()
@@ -717,10 +706,10 @@ func (c *Client) ExportChannel(ctx context.Context, req *mcp.CallToolRequest, in
 
 	ref, threadFiles, err := c.exportChannelTwoPass(ctx, channelID, input, getUserName, stats)
 	if err != nil {
-		return nil, ExportChannelOutput{}, err
+		return ExportChannelOutput{}, err
 	}
 
-	return nil, ExportChannelOutput{
+	return ExportChannelOutput{
 		File:          ref,
 		ThreadFiles:   threadFiles,
 		ChannelID:     channelID,
@@ -732,9 +721,7 @@ func (c *Client) ExportChannel(ctx context.Context, req *mcp.CallToolRequest, in
 }
 
 // exportChannelTwoPass implements the two-pass export for chronological ordering.
-// Pass 1: Write messages (newest-first from API) to temp file, tracking offsets
-// Pass 2: Read temp file in reverse order, write to final file (oldest-first)
-func (c *Client) exportChannelTwoPass(
+func (c *Service) exportChannelTwoPass(
 	ctx context.Context,
 	channelID string,
 	input ExportChannelInput,
@@ -800,8 +787,7 @@ func (c *Client) exportChannelTwoPass(
 }
 
 // writeHistoryToTempFile fetches channel history and writes messages to a temp file.
-// Returns the temp file path, byte offsets for each line, and messages with threads.
-func (c *Client) writeHistoryToTempFile(
+func (c *Service) writeHistoryToTempFile(
 	ctx context.Context,
 	dir string,
 	channelID string,
@@ -889,7 +875,6 @@ func (c *Client) writeHistoryToTempFile(
 }
 
 // reverseCopyLines copies lines from src to dst in reverse order using pre-recorded offsets.
-// Each offset marks the start of a line in src; lines are written to dst from last to first.
 func reverseCopyLines(src *os.File, dst *os.File, offsets []int64) error {
 	bw := bufio.NewWriter(dst)
 	for i := len(offsets) - 1; i >= 0; i-- {

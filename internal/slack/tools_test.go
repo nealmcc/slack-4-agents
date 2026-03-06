@@ -226,7 +226,7 @@ func TestTimestamp_MarshalJSON_InStruct(t *testing.T) {
 }
 
 // Helper to create a test client with mocked HTTP server
-func newTestClient(t *testing.T, mock *mockSlackServer) (*Client, *testLogger, string) {
+func newTestClient(t *testing.T, mock *mockSlackServer) (*Service, *testLogger, string) {
 	t.Helper()
 
 	// Create a Slack client that points to our mock server
@@ -242,7 +242,7 @@ func newTestClient(t *testing.T, mock *mockSlackServer) (*Client, *testLogger, s
 
 	logger := newTestLogger()
 	responses := NewFileResponseWriter(outputDir)
-	return newClientWithAPI(api, nil, logger.Logger, responses), logger, outputDir
+	return newServiceWithIndex(api, nil, logger.Logger, responses), logger, outputDir
 }
 
 func TestListChannels(t *testing.T) {
@@ -290,7 +290,7 @@ func TestListChannels(t *testing.T) {
 		Limit: 10,
 	}
 
-	_, output, err := client.ListChannels(ctx, nil, input)
+	output, err := client.ListChannels(ctx, input)
 	if err != nil {
 		t.Fatalf("ListChannels failed: %v", err)
 	}
@@ -435,7 +435,7 @@ func TestReadHistory(t *testing.T) {
 		Limit:   10,
 	}
 
-	_, output, err := client.ReadHistory(ctx, nil, input)
+	output, err := client.ReadHistory(ctx, input)
 	if err != nil {
 		t.Fatalf("ReadHistory failed: %v", err)
 	}
@@ -494,7 +494,7 @@ func TestGetUser(t *testing.T) {
 		User: "U123456789",
 	}
 
-	_, output, err := client.GetUser(ctx, nil, input)
+	output, err := client.GetUser(ctx, input)
 	if err != nil {
 		t.Fatalf("GetUser failed: %v", err)
 	}
@@ -553,7 +553,7 @@ func TestGetPermalink(t *testing.T) {
 		Timestamp: "1234567890.123456",
 	}
 
-	_, output, err := client.GetPermalink(ctx, nil, input)
+	output, err := client.GetPermalink(ctx, input)
 	if err != nil {
 		t.Fatalf("GetPermalink failed: %v", err)
 	}
@@ -612,7 +612,7 @@ func TestSearchMessages(t *testing.T) {
 		Sort:  "timestamp",
 	}
 
-	_, output, err := client.SearchMessages(ctx, nil, input)
+	output, err := client.SearchMessages(ctx, input)
 	if err != nil {
 		t.Fatalf("SearchMessages failed: %v", err)
 	}
@@ -723,7 +723,7 @@ func TestExportChannel_BasicMessages(t *testing.T) {
 		Channel: "C123456789",
 	}
 
-	_, output, err := client.ExportChannel(ctx, nil, input)
+	output, err := client.ExportChannel(ctx, input)
 	if err != nil {
 		t.Fatalf("ExportChannel failed: %v", err)
 	}
@@ -870,7 +870,7 @@ func TestExportChannel_WithThreads(t *testing.T) {
 		Channel: "C123456789",
 	}
 
-	_, output, err := client.ExportChannel(ctx, nil, input)
+	output, err := client.ExportChannel(ctx, input)
 	if err != nil {
 		t.Fatalf("ExportChannel failed: %v", err)
 	}
@@ -983,7 +983,7 @@ func TestExportChannel_WithReactions(t *testing.T) {
 		Channel: "C123456789",
 	}
 
-	_, output, err := client.ExportChannel(ctx, nil, input)
+	output, err := client.ExportChannel(ctx, input)
 	if err != nil {
 		t.Fatalf("ExportChannel failed: %v", err)
 	}
@@ -1054,7 +1054,7 @@ func TestExportChannel_TimeRange(t *testing.T) {
 		Latest:  "1704153600.000000",
 	}
 
-	_, _, err := client.ExportChannel(ctx, nil, input)
+	_, err := client.ExportChannel(ctx, input)
 	if err != nil {
 		t.Fatalf("ExportChannel failed: %v", err)
 	}
@@ -1103,7 +1103,7 @@ func TestExportChannel_EmptyChannel(t *testing.T) {
 		Channel: "C123456789",
 	}
 
-	_, output, err := client.ExportChannel(ctx, nil, input)
+	output, err := client.ExportChannel(ctx, input)
 	if err != nil {
 		t.Fatalf("ExportChannel failed: %v", err)
 	}
@@ -1194,7 +1194,7 @@ func TestExportChannel_Pagination(t *testing.T) {
 		Channel: "C123456789",
 	}
 
-	_, output, err := client.ExportChannel(ctx, nil, input)
+	output, err := client.ExportChannel(ctx, input)
 	if err != nil {
 		t.Fatalf("ExportChannel failed: %v", err)
 	}
@@ -1293,7 +1293,7 @@ func TestReadThread(t *testing.T) {
 		Limit:     50,
 	}
 
-	_, output, err := client.ReadThread(ctx, nil, input)
+	output, err := client.ReadThread(ctx, input)
 	if err != nil {
 		t.Fatalf("ReadThread failed: %v", err)
 	}
@@ -1370,7 +1370,7 @@ func TestReadCanvas_ByFileID(t *testing.T) {
 		FileID: "F123CANVAS",
 	}
 
-	_, output, err := client.ReadCanvas(ctx, nil, input)
+	output, err := client.ReadCanvas(ctx, input)
 	if err != nil {
 		t.Fatalf("ReadCanvas failed: %v", err)
 	}
@@ -1455,7 +1455,7 @@ func TestReadCanvas_ByChannel(t *testing.T) {
 		Channel: "C123456789",
 	}
 
-	_, output, err := client.ReadCanvas(ctx, nil, input)
+	output, err := client.ReadCanvas(ctx, input)
 	if err != nil {
 		t.Fatalf("ReadCanvas failed: %v", err)
 	}
@@ -1503,7 +1503,7 @@ func TestReadCanvas_ChannelWithoutCanvas(t *testing.T) {
 		Channel: "C123456789",
 	}
 
-	_, _, err := client.ReadCanvas(ctx, nil, input)
+	_, err := client.ReadCanvas(ctx, input)
 	if err == nil {
 		t.Fatal("Expected error for channel without canvas, got nil")
 	}
@@ -1523,13 +1523,13 @@ func TestReadCanvas_ValidationError(t *testing.T) {
 	ctx := context.Background()
 
 	// Neither channel nor file_id provided
-	_, _, err := client.ReadCanvas(ctx, nil, ReadCanvasInput{})
+	_, err := client.ReadCanvas(ctx, ReadCanvasInput{})
 	if err == nil {
 		t.Fatal("Expected error when neither channel nor file_id provided, got nil")
 	}
 
 	// Both channel and file_id provided
-	_, _, err = client.ReadCanvas(ctx, nil, ReadCanvasInput{
+	_, err = client.ReadCanvas(ctx, ReadCanvasInput{
 		Channel: "C123456789",
 		FileID:  "F123CANVAS",
 	})
@@ -1566,7 +1566,7 @@ func TestReadCanvas_NonCanvasFile(t *testing.T) {
 		FileID: "F789PDF",
 	}
 
-	_, _, err := client.ReadCanvas(ctx, nil, input)
+	_, err := client.ReadCanvas(ctx, input)
 	if err == nil {
 		t.Fatal("Expected error for non-canvas file, got nil")
 	}

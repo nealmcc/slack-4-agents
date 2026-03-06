@@ -1,21 +1,27 @@
-package mcp
+package slackmcp
 
 import (
 	"slices"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	slackclient "go.mcconachie.co/slack-4-agents/internal/slack"
+	goslack "github.com/slack-go/slack"
+	"go.mcconachie.co/slack-4-agents/internal/slack"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/zap/zaptest"
 )
 
-func TestCreateServer_ReturnsValidServer(t *testing.T) {
+func newTestClient(t *testing.T) *slack.Service {
 	ctrl := gomock.NewController(t)
-	handler := NewMockToolHandler(ctrl)
-	logger := zaptest.NewLogger(t)
+	api := slack.NewMockSlackAPI(ctrl)
+	return slack.NewService(api, zaptest.NewLogger(t), nil)
+}
 
-	server := CreateServer(logger, handler)
+func TestCreateServer_ReturnsValidServer(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	client := newTestClient(t)
+
+	server := NewServer(logger, client)
 
 	if server == nil {
 		t.Fatal("CreateServer returned nil")
@@ -23,11 +29,10 @@ func TestCreateServer_ReturnsValidServer(t *testing.T) {
 }
 
 func TestServer_ListsAllRegisteredTools(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	handler := NewMockToolHandler(ctrl)
 	logger := zaptest.NewLogger(t)
+	client := newTestClient(t)
 
-	server := CreateServer(logger, handler)
+	server := NewServer(logger, client)
 
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 
@@ -37,12 +42,12 @@ func TestServer_ListsAllRegisteredTools(t *testing.T) {
 		server.Run(ctx, serverTransport)
 	}()
 
-	client := mcp.NewClient(&mcp.Implementation{
+	mcpClient := mcp.NewClient(&mcp.Implementation{
 		Name:    "test-client",
 		Version: "1.0.0",
 	}, nil)
 
-	session, err := client.Connect(ctx, clientTransport, nil)
+	session, err := mcpClient.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		t.Fatalf("client.Connect failed: %v", err)
 	}
@@ -81,11 +86,10 @@ func TestServer_ListsAllRegisteredTools(t *testing.T) {
 }
 
 func TestServer_ToolsHaveDescriptions(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	handler := NewMockToolHandler(ctrl)
 	logger := zaptest.NewLogger(t)
+	client := newTestClient(t)
 
-	server := CreateServer(logger, handler)
+	server := NewServer(logger, client)
 
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 
@@ -95,12 +99,12 @@ func TestServer_ToolsHaveDescriptions(t *testing.T) {
 		server.Run(ctx, serverTransport)
 	}()
 
-	client := mcp.NewClient(&mcp.Implementation{
+	mcpClient := mcp.NewClient(&mcp.Implementation{
 		Name:    "test-client",
 		Version: "1.0.0",
 	}, nil)
 
-	session, err := client.Connect(ctx, clientTransport, nil)
+	session, err := mcpClient.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		t.Fatalf("client.Connect failed: %v", err)
 	}
@@ -120,22 +124,19 @@ func TestServer_ToolsHaveDescriptions(t *testing.T) {
 
 func TestServer_CallToolInvokesHandler(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	handler := NewMockToolHandler(ctrl)
+	api := slack.NewMockSlackAPI(ctrl)
 	logger := zaptest.NewLogger(t)
+	client := slack.NewService(api, logger, nil)
 
-	wantOutput := slackclient.GetUserOutput{
-		User: slackclient.UserInfo{
+	api.EXPECT().
+		GetUserInfoContext(gomock.Any(), "U123456789").
+		Return(&goslack.User{
 			ID:       "U123456789",
 			Name:     "testuser",
 			RealName: "Test User",
-		},
-	}
+		}, nil)
 
-	handler.EXPECT().
-		GetUser(gomock.Any(), gomock.Any(), slackclient.GetUserInput{User: "U123456789"}).
-		Return(nil, wantOutput, nil)
-
-	server := CreateServer(logger, handler)
+	server := NewServer(logger, client)
 
 	clientTransport, serverTransport := mcp.NewInMemoryTransports()
 
@@ -145,12 +146,12 @@ func TestServer_CallToolInvokesHandler(t *testing.T) {
 		server.Run(ctx, serverTransport)
 	}()
 
-	client := mcp.NewClient(&mcp.Implementation{
+	mcpClient := mcp.NewClient(&mcp.Implementation{
 		Name:    "test-client",
 		Version: "1.0.0",
 	}, nil)
 
-	session, err := client.Connect(ctx, clientTransport, nil)
+	session, err := mcpClient.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		t.Fatalf("client.Connect failed: %v", err)
 	}

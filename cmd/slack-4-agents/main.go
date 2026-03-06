@@ -9,8 +9,9 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	slackmcp "go.mcconachie.co/slack-4-agents/internal/mcp"
-	slackclient "go.mcconachie.co/slack-4-agents/internal/slack"
+	"go.mcconachie.co/slack-4-agents/internal/slack"
+	"go.mcconachie.co/slack-4-agents/internal/slackapi"
+	"go.mcconachie.co/slack-4-agents/internal/slackmcp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -22,32 +23,31 @@ func main() {
 		fmt.Println(version)
 		return
 	}
-	cfg := createConfig()
-	initWorkDir(cfg.WorkDir)
-	logger := initLogger(cfg.LogLevel, cfg.LogDir)
-	defer logger.Sync()
 
-	server := newServer(logger, cfg)
-	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
-		logger.Fatal("Server error", zap.Error(err))
+	token := os.Getenv("SLACK_TOKEN")
+	cookie := os.Getenv("SLACK_COOKIE")
+	logLevel := os.Getenv("LOG_LEVEL")
+
+	if token == "" {
+		log.Fatal("SLACK_TOKEN is required")
 	}
-}
 
-func createConfig() slackclient.Config {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatalf("Failed to get home directory: %v", err)
 	}
 
-	baseDir := filepath.Join(homeDir, ".claude", "servers", "slack-4-agents")
-	cfg := slackclient.Config{
-		Token:    os.Getenv("SLACK_TOKEN"),
-		Cookie:   os.Getenv("SLACK_COOKIE"),
-		LogLevel: os.Getenv("LOG_LEVEL"),
-		WorkDir:  baseDir,
-		LogDir:   filepath.Join(baseDir, "logs"),
+	workDir := filepath.Join(homeDir, ".claude", "servers", "slack-4-agents")
+	logDir := filepath.Join(workDir, "logs")
+
+	initWorkDir(workDir)
+	logger := initLogger(logLevel, logDir)
+	defer logger.Sync()
+
+	server := initServer(logger, token, cookie, workDir)
+	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+		logger.Fatal("Server error", zap.Error(err))
 	}
-	return cfg
 }
 
 func initWorkDir(workDir string) {
@@ -60,17 +60,16 @@ func initWorkDir(workDir string) {
 	}
 }
 
-func newServer(logger *zap.Logger, cfg slackclient.Config) *mcp.Server {
-	responseDir := filepath.Join(cfg.WorkDir, "responses")
-	responses := slackclient.NewFileResponseWriter(responseDir)
-
+func initServer(logger *zap.Logger, token, cookie, workDir string) *mcp.Server {
 	logger.Info("Creating Slack client")
-	client, err := slackclient.NewClient(cfg, logger, responses)
-	if err != nil {
-		logger.Fatal("Failed to create Slack client", zap.Error(err))
-	}
 
-	server := slackmcp.CreateServer(logger, client)
+	responseDir := filepath.Join(workDir, "responses")
+	responses := slack.NewFileResponseWriter(responseDir)
+
+	api := slackapi.NewClient(token, cookie, logger)
+	client := slack.NewService(api, logger, responses)
+
+	server := slackmcp.NewServer(logger, client)
 	return server
 }
 
@@ -91,7 +90,6 @@ func initLogger(level string, logDir string) *zap.Logger {
 		log.Fatalf("Failed to open log file: %v", err)
 	}
 
-	// Create cores for stderr and file
 	stderrCore := zapcore.NewCore(
 		zapcore.NewJSONEncoder(encoderConfig),
 		zapcore.AddSync(os.Stderr),
@@ -104,7 +102,6 @@ func initLogger(level string, logDir string) *zap.Logger {
 		logLevel,
 	)
 
-	// Combine both cores
 	core := zapcore.NewTee(stderrCore, fileCore)
 
 	logger := zap.New(core, zap.AddCaller())

@@ -12,7 +12,7 @@ import (
 
 func TestGetChannelID_ConcurrentIDPassthrough(t *testing.T) {
 	cache := newIndex()
-	client := newClientWithAPI(nil, cache, zaptest.NewLogger(t), nil)
+	client := newServiceWithIndex(nil, cache, zaptest.NewLogger(t), nil)
 
 	const goroutines = 20
 	var wg sync.WaitGroup
@@ -47,7 +47,7 @@ func TestGetChannelID_ConcurrentNameLookup(t *testing.T) {
 		ix.Add([]slack.Channel{fakeChannel(i)})
 	}
 
-	client := newClientWithAPI(nil, ix, zaptest.NewLogger(t), nil)
+	client := newServiceWithIndex(nil, ix, zaptest.NewLogger(t), nil)
 
 	const goroutines = 20
 	var wg sync.WaitGroup
@@ -94,7 +94,7 @@ func TestGetChannelID_CacheMiss(t *testing.T) {
 		},
 	})
 
-	client := newClientWithAPI(nil, ix, zaptest.NewLogger(t), nil)
+	client := newServiceWithIndex(nil, ix, zaptest.NewLogger(t), nil)
 
 	_, err := client.GetChannelID("nonexistent")
 	if err == nil {
@@ -111,7 +111,7 @@ func TestGetChannelID_CacheMiss(t *testing.T) {
 
 func TestFindChannelID_NotInIndex(t *testing.T) {
 	ix := newIndex()
-	client := newClientWithAPI(nil, ix, zaptest.NewLogger(t), nil)
+	client := newServiceWithIndex(nil, ix, zaptest.NewLogger(t), nil)
 
 	_, err := client.GetChannelID("does-not-exist")
 	if err == nil {

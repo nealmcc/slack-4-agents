@@ -124,6 +124,36 @@ func TestFindChannelID_NotInIndex(t *testing.T) {
 	}
 }
 
+func TestIsChannelID(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"valid C channel", "C123456789", true},
+		{"valid D channel (DM)", "D123456789", true},
+		{"valid G channel (group)", "G123456789", true},
+		{"longer valid ID", "C12345678901", true},
+		{"too short", "C12345", false},
+		{"starts with lowercase", "c123456789", false},
+		{"starts with invalid letter", "X123456789", false},
+		{"contains lowercase", "C12345678a", false},
+		{"contains special char", "C12345678-", false},
+		{"channel name", "general", false},
+		{"channel name with hash", "#general", false},
+		{"empty string", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isChannelID(tt.input)
+			if got != tt.want {
+				t.Errorf("isChannelID(%q): got %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func fakeChannel(i int) slack.Channel {
 	return slack.Channel{
 		GroupConversation: slack.GroupConversation{

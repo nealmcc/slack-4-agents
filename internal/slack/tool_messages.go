@@ -3,30 +3,63 @@ package slack
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/slack-go/slack"
 )
 
 // MessageInfo represents a Slack message
 type MessageInfo struct {
-	Timestamp       string `json:"timestamp"`
-	User            string `json:"user"`
-	UserName        string `json:"user_name,omitempty"`
-	Text            string `json:"text"`
-	ThreadTimestamp string `json:"thread_ts,omitempty"`
-	ReplyCount      int    `json:"reply_count,omitempty"`
+	Timestamp        string         `json:"timestamp"`
+	TimestampDisplay string         `json:"timestamp_display,omitempty"`
+	User             string         `json:"user"`
+	UserName         string         `json:"user_name,omitempty"`
+	Text             string         `json:"text"`
+	ThreadTimestamp  string         `json:"thread_ts,omitempty"`
+	ReplyCount       int            `json:"reply_count,omitempty"`
+	Reactions        []ReactionInfo `json:"reactions,omitempty"`
 }
 
-// resolveUserNames looks up display names for a set of user IDs
-func (c *Service) resolveUserNames(ctx context.Context, userIDs map[string]bool) map[string]string {
-	names := make(map[string]string, len(userIDs))
-	for id := range userIDs {
-		user, err := c.api.GetUserInfoContext(ctx, id)
-		if err == nil {
-			names[id] = user.Name
-		}
+// ReactionInfo represents an emoji reaction with its count
+type ReactionInfo struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+// formatSlackTimestamp converts a Slack timestamp (e.g. "1234567890.123456") to ISO 8601.
+func formatSlackTimestamp(ts string) string {
+	if ts == "" {
+		return ""
 	}
-	return names
+	var sec int64
+	fmt.Sscanf(ts, "%d", &sec)
+	return time.Unix(sec, 0).UTC().Format(time.RFC3339)
+}
+
+// userNameCache provides lazy, cached user-name lookups within a single tool call.
+type userNameCache struct {
+	svc   *Service
+	ctx   context.Context
+	cache map[string]string
+}
+
+func (c *Service) newUserNameCache(ctx context.Context) *userNameCache {
+	return &userNameCache{svc: c, ctx: ctx, cache: make(map[string]string)}
+}
+
+func (u *userNameCache) Get(userID string) string {
+	if userID == "" {
+		return ""
+	}
+	if name, ok := u.cache[userID]; ok {
+		return name
+	}
+	user, err := u.svc.api.GetUserInfoContext(u.ctx, userID)
+	if err == nil {
+		u.cache[userID] = user.Name
+		return user.Name
+	}
+	return ""
 }
 
 // ReadHistoryInput defines input for reading channel history
@@ -74,23 +107,17 @@ func (c *Service) ReadHistory(ctx context.Context, input ReadHistoryInput) (Read
 		HasMore:   history.HasMore,
 	}
 
-	userIDs := make(map[string]bool)
-	for _, msg := range history.Messages {
-		if msg.User != "" {
-			userIDs[msg.User] = true
-		}
-	}
-
-	userNames := c.resolveUserNames(ctx, userIDs)
+	names := c.newUserNameCache(ctx)
 
 	for _, msg := range history.Messages {
 		output.Messages = append(output.Messages, MessageInfo{
-			Timestamp:       msg.Timestamp,
-			User:            msg.User,
-			UserName:        userNames[msg.User],
-			Text:            msg.Text,
-			ThreadTimestamp: msg.ThreadTimestamp,
-			ReplyCount:      msg.ReplyCount,
+			Timestamp:        msg.Timestamp,
+			TimestampDisplay: formatSlackTimestamp(msg.Timestamp),
+			User:             msg.User,
+			UserName:         names.Get(msg.User),
+			Text:             msg.Text,
+			ThreadTimestamp:  msg.ThreadTimestamp,
+			ReplyCount:       msg.ReplyCount,
 		})
 	}
 
@@ -146,23 +173,17 @@ func (c *Service) ReadThread(ctx context.Context, input ReadThreadInput) (ReadTh
 		NextCursor:      nextCursor,
 	}
 
-	userIDs := make(map[string]bool)
-	for _, msg := range messages {
-		if msg.User != "" {
-			userIDs[msg.User] = true
-		}
-	}
-
-	userNames := c.resolveUserNames(ctx, userIDs)
+	names := c.newUserNameCache(ctx)
 
 	for _, msg := range messages {
 		output.Messages = append(output.Messages, MessageInfo{
-			Timestamp:       msg.Timestamp,
-			User:            msg.User,
-			UserName:        userNames[msg.User],
-			Text:            msg.Text,
-			ThreadTimestamp: msg.ThreadTimestamp,
-			ReplyCount:      msg.ReplyCount,
+			Timestamp:        msg.Timestamp,
+			TimestampDisplay: formatSlackTimestamp(msg.Timestamp),
+			User:             msg.User,
+			UserName:         names.Get(msg.User),
+			Text:             msg.Text,
+			ThreadTimestamp:  msg.ThreadTimestamp,
+			ReplyCount:       msg.ReplyCount,
 		})
 	}
 

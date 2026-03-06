@@ -36,7 +36,7 @@ func registerTools(server *mcp.Server, client *slack.Service, logger *zap.Logger
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "slack_read_history",
-		Description: "Read message history from a Slack channel or conversation. Returns messages with author info, timestamps, and thread details.",
+		Description: "Read recent messages from a Slack channel. Returns messages with author info, timestamps, and thread details. Supports time-range filtering and pagination (max 100 per call). Best for browsing recent activity or reading a specific time window.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input slack.ReadHistoryInput) (*mcp.CallToolResult, slack.ReadHistoryOutput, error) {
 		output, err := client.ReadHistory(ctx, input)
 		return nil, output, slack.WrapError(logger, "read_history", err)
@@ -76,7 +76,7 @@ func registerTools(server *mcp.Server, client *slack.Service, logger *zap.Logger
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "slack_export_channel",
-		Description: "Export a Slack channel's contents (including threads) to JSON-lines format. Returns a file with all messages and thread replies, reactions, and user names.",
+		Description: "Export a Slack channel's complete history (including all threads and reactions) to JSON-lines files. Automatically paginates through the full channel. Best for bulk analysis or when you need the full picture.",
 	}, func(ctx context.Context, req *mcp.CallToolRequest, input slack.ExportChannelInput) (*mcp.CallToolResult, slack.ExportChannelOutput, error) {
 		output, err := client.ExportChannel(ctx, input)
 		return nil, output, slack.WrapError(logger, "export_channel", err)

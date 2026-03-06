@@ -51,7 +51,7 @@ func TestProcessReactions_Empty(t *testing.T) {
 	}
 }
 
-func TestBuildExportMessage(t *testing.T) {
+func TestBuildMessageInfo(t *testing.T) {
 	msg := slack.Message{
 		Msg: slack.Msg{
 			Timestamp:  "1234567890.123456",
@@ -64,10 +64,13 @@ func TestBuildExportMessage(t *testing.T) {
 		},
 	}
 
-	got := buildExportMessage(msg, "", "alice")
+	got := buildMessageInfo(msg, "", "alice")
 
 	if got.Timestamp != "1234567890.123456" {
 		t.Errorf("Timestamp: got %q, want %q", got.Timestamp, "1234567890.123456")
+	}
+	if got.TimestampDisplay != "2009-02-13T23:31:30Z" {
+		t.Errorf("TimestampDisplay: got %q, want %q", got.TimestampDisplay, "2009-02-13T23:31:30Z")
 	}
 	if got.User != "U123456789" {
 		t.Errorf("User: got %q, want %q", got.User, "U123456789")
@@ -89,7 +92,7 @@ func TestBuildExportMessage(t *testing.T) {
 	}
 }
 
-func TestBuildExportMessage_ThreadReply(t *testing.T) {
+func TestBuildMessageInfo_ThreadReply(t *testing.T) {
 	msg := slack.Message{
 		Msg: slack.Msg{
 			Timestamp: "1234567891.123456",
@@ -98,7 +101,7 @@ func TestBuildExportMessage_ThreadReply(t *testing.T) {
 		},
 	}
 
-	got := buildExportMessage(msg, "1234567890.123456", "bob")
+	got := buildMessageInfo(msg, "1234567890.123456", "bob")
 
 	if got.ThreadTimestamp != "1234567890.123456" {
 		t.Errorf("ThreadTimestamp: got %q, want %q", got.ThreadTimestamp, "1234567890.123456")
@@ -137,61 +140,24 @@ func TestExportStats(t *testing.T) {
 	}
 }
 
-func TestTimestamp_String(t *testing.T) {
+func TestFormatSlackTimestamp(t *testing.T) {
 	tests := []struct {
 		name  string
-		input Timestamp
+		input string
 		want  string
 	}{
-		{"standard slack timestamp", Timestamp("1234567890.123456"), "2009-02-13T23:31:30Z"},
-		{"timestamp without microseconds", Timestamp("1234567890"), "2009-02-13T23:31:30Z"},
-		{"empty timestamp", Timestamp(""), ""},
+		{"standard slack timestamp", "1234567890.123456", "2009-02-13T23:31:30Z"},
+		{"timestamp without microseconds", "1234567890", "2009-02-13T23:31:30Z"},
+		{"empty timestamp", "", ""},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.input.String()
+			got := formatSlackTimestamp(tt.input)
 			if got != tt.want {
-				t.Errorf("Timestamp(%q).String(): want %q; got %q", tt.input, tt.want, got)
+				t.Errorf("formatSlackTimestamp(%q): got %q, want %q", tt.input, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestTimestamp_Raw(t *testing.T) {
-	ts := Timestamp("1234567890.123456")
-	want := "1234567890.123456"
-	if got := ts.Raw(); got != want {
-		t.Errorf("Raw(): want %q; got %q", want, got)
-	}
-}
-
-func TestTimestamp_MarshalJSON(t *testing.T) {
-	ts := Timestamp("1234567890.123456")
-	got, err := json.Marshal(ts)
-	if err != nil {
-		t.Fatalf("MarshalJSON failed: %v", err)
-	}
-
-	want := `"2009-02-13T23:31:30Z"`
-	if string(got) != want {
-		t.Errorf("MarshalJSON: want %s; got %s", want, got)
-	}
-}
-
-func TestTimestamp_MarshalJSON_InStruct(t *testing.T) {
-	type testStruct struct {
-		Timestamp Timestamp `json:"ts"`
-	}
-	s := testStruct{Timestamp: Timestamp("1234567890.123456")}
-	got, err := json.Marshal(s)
-	if err != nil {
-		t.Fatalf("MarshalJSON failed: %v", err)
-	}
-
-	want := `{"ts":"2009-02-13T23:31:30Z"}`
-	if string(got) != want {
-		t.Errorf("MarshalJSON: want %s; got %s", want, got)
 	}
 }
 
@@ -303,7 +269,7 @@ func TestExportChannel_BasicMessages(t *testing.T) {
 
 	// After reversal, messages should be in chronological order (oldest first)
 	// alice's message (ts=1704067200) should be first
-	var msg ExportMessage
+	var msg MessageInfo
 	if err := json.Unmarshal([]byte(lines[0]), &msg); err != nil {
 		t.Fatalf("Failed to unmarshal first line: %v", err)
 	}
@@ -312,9 +278,11 @@ func TestExportChannel_BasicMessages(t *testing.T) {
 		t.Errorf("First message UserName: got %q, want %q", msg.UserName, "alice")
 	}
 
-	// Verify timestamps are ISO 8601 format
-	if !strings.HasPrefix(string(msg.Timestamp), "2024-") {
-		t.Errorf("Timestamp not in ISO format: got %q", msg.Timestamp)
+	if msg.Timestamp != "1704067200.000001" {
+		t.Errorf("Timestamp: got %q, want raw Slack ts", msg.Timestamp)
+	}
+	if !strings.HasPrefix(msg.TimestampDisplay, "2024-") {
+		t.Errorf("TimestampDisplay not in ISO format: got %q", msg.TimestampDisplay)
 	}
 }
 
@@ -460,14 +428,13 @@ func TestExportChannel_WithThreads(t *testing.T) {
 	}
 
 	// Second line should be first reply with thread_ts
-	var reply ExportMessage
+	var reply MessageInfo
 	if err := json.Unmarshal([]byte(threadLines[1]), &reply); err != nil {
 		t.Fatalf("Failed to unmarshal second line: %v", err)
 	}
 
-	// ThreadTimestamp is now ISO formatted
-	if !strings.HasPrefix(string(reply.ThreadTimestamp), "2024-") {
-		t.Errorf("Reply ThreadTimestamp not ISO format: got %q", reply.ThreadTimestamp)
+	if reply.ThreadTimestamp != "1704067200.000001" {
+		t.Errorf("Reply ThreadTimestamp: got %q, want %q", reply.ThreadTimestamp, "1704067200.000001")
 	}
 }
 
@@ -544,7 +511,7 @@ func TestExportChannel_WithReactions(t *testing.T) {
 		t.Fatalf("Failed to read file: %v", err)
 	}
 
-	var msg ExportMessage
+	var msg MessageInfo
 	if err := json.Unmarshal(data[:len(data)-1], &msg); err != nil {
 		t.Fatalf("Failed to unmarshal message: %v", err)
 	}

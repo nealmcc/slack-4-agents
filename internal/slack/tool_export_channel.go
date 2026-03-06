@@ -12,30 +12,6 @@ import (
 	"github.com/slack-go/slack"
 )
 
-// Timestamp wraps a Slack timestamp and formats as ISO 8601 for display and JSON
-type Timestamp string
-
-// String implements fmt.Stringer, returning ISO 8601 format
-func (ts Timestamp) String() string {
-	if ts == "" {
-		return ""
-	}
-	var sec int64
-	fmt.Sscanf(string(ts), "%d", &sec)
-	t := time.Unix(sec, 0).UTC()
-	return t.Format(time.RFC3339)
-}
-
-// MarshalJSON implements json.Marshaler, outputting ISO 8601 format
-func (ts Timestamp) MarshalJSON() ([]byte, error) {
-	return json.Marshal(ts.String())
-}
-
-// Raw returns the original Slack timestamp
-func (ts Timestamp) Raw() string {
-	return string(ts)
-}
-
 // ExportChannelInput defines input for exporting channel history
 type ExportChannelInput struct {
 	Channel string `json:"channel" jsonschema:"Channel ID or name"`
@@ -77,16 +53,17 @@ func processReactions(reactions []slack.ItemReaction) []ReactionInfo {
 	return result
 }
 
-// buildExportMessage converts a Slack message to export format
-func buildExportMessage(msg slack.Message, threadTs Timestamp, userName string) ExportMessage {
-	return ExportMessage{
-		Timestamp:       Timestamp(msg.Timestamp),
-		User:            msg.User,
-		UserName:        userName,
-		Text:            msg.Text,
-		ThreadTimestamp: threadTs,
-		ReplyCount:      msg.ReplyCount,
-		Reactions:       processReactions(msg.Reactions),
+// buildMessageInfo converts a Slack message to export format
+func buildMessageInfo(msg slack.Message, threadTs string, userName string) MessageInfo {
+	return MessageInfo{
+		Timestamp:        msg.Timestamp,
+		TimestampDisplay: formatSlackTimestamp(msg.Timestamp),
+		User:             msg.User,
+		UserName:         userName,
+		Text:             msg.Text,
+		ThreadTimestamp:  threadTs,
+		ReplyCount:       msg.ReplyCount,
+		Reactions:        processReactions(msg.Reactions),
 	}
 }
 
@@ -98,13 +75,13 @@ func (c *Service) writeThreadFile(
 	getUserName func(string) string,
 	stats *exportStats,
 ) (FileRef, error) {
-	parentTs := Timestamp(parentMsg.Timestamp)
-	filename := fmt.Sprintf("export-%s-thread-%s.jsonl", channelID, parentTs.Raw())
+	parentTs := parentMsg.Timestamp
+	filename := fmt.Sprintf("export-%s-thread-%s.jsonl", channelID, parentTs)
 
 	return c.responses.WriteJSONLinesNamed(filename, func(jw JSONLineWriter) error {
 		stats.trackUser(parentMsg.User)
 		stats.addReactions(parentMsg.Reactions)
-		if err := jw.WriteLine(buildExportMessage(parentMsg, "", getUserName(parentMsg.User))); err != nil {
+		if err := jw.WriteLine(buildMessageInfo(parentMsg, "", getUserName(parentMsg.User))); err != nil {
 			return err
 		}
 
@@ -122,7 +99,7 @@ func (c *Service) writeThreadFile(
 				var err error
 				replies, hasMore, cursor, err = c.api.GetConversationRepliesContext(ctx, &slack.GetConversationRepliesParameters{
 					ChannelID: channelID,
-					Timestamp: parentTs.Raw(),
+					Timestamp: parentTs,
 					Cursor:    cursor,
 					Limit:     200,
 				})
@@ -133,14 +110,14 @@ func (c *Service) writeThreadFile(
 			}
 
 			for _, reply := range replies {
-				if reply.Timestamp == parentTs.Raw() {
+				if reply.Timestamp == parentTs {
 					continue
 				}
 
 				stats.trackUser(reply.User)
 				stats.addReactions(reply.Reactions)
 
-				replyMsg := buildExportMessage(reply, parentTs, getUserName(reply.User))
+				replyMsg := buildMessageInfo(reply, parentTs, getUserName(reply.User))
 				if err := jw.WriteLine(replyMsg); err != nil {
 					return err
 				}
@@ -166,23 +143,6 @@ type ExportChannelOutput struct {
 	UniqueUsers   int       `json:"unique_users"`
 }
 
-// ExportMessage represents a message in the export output
-type ExportMessage struct {
-	Timestamp       Timestamp      `json:"timestamp"`
-	User            string         `json:"user"`
-	UserName        string         `json:"user_name,omitempty"`
-	Text            string         `json:"text"`
-	ThreadTimestamp Timestamp      `json:"thread_ts,omitempty"`
-	ReplyCount      int            `json:"reply_count,omitempty"`
-	Reactions       []ReactionInfo `json:"reactions,omitempty"`
-}
-
-// ReactionInfo represents an emoji reaction with its count
-type ReactionInfo struct {
-	Name  string `json:"name"`
-	Count int    `json:"count"`
-}
-
 // ExportChannel exports a channel's messages to JSON-lines format.
 func (c *Service) ExportChannel(ctx context.Context, input ExportChannelInput) (ExportChannelOutput, error) {
 	channelID, err := c.GetChannelID(input.Channel)
@@ -191,29 +151,9 @@ func (c *Service) ExportChannel(ctx context.Context, input ExportChannelInput) (
 	}
 
 	stats := newExportStats()
-	userNames := make(map[string]string)
+	names := c.newUserNameCache(ctx)
 
-	getUserName := func(userID string) string {
-		if userID == "" {
-			return ""
-		}
-		if name, ok := userNames[userID]; ok {
-			return name
-		}
-		var user *slack.User
-		err := withRetry(ctx, c.logger, func() error {
-			var err error
-			user, err = c.api.GetUserInfoContext(ctx, userID)
-			return err
-		})
-		if err == nil {
-			userNames[userID] = user.Name
-			return user.Name
-		}
-		return ""
-	}
-
-	ref, threadFiles, err := c.exportChannelTwoPass(ctx, channelID, input, getUserName, stats)
+	ref, threadFiles, err := c.exportChannelTwoPass(ctx, channelID, input, names.Get, stats)
 	if err != nil {
 		return ExportChannelOutput{}, err
 	}
@@ -346,7 +286,7 @@ func (c *Service) writeHistoryToTempFile(
 			stats.trackUser(msg.User)
 			stats.addReactions(msg.Reactions)
 
-			exportMsg := buildExportMessage(msg, "", getUserName(msg.User))
+			exportMsg := buildMessageInfo(msg, "", getUserName(msg.User))
 			b, err := json.Marshal(exportMsg)
 			if err != nil {
 				return "", nil, nil, fmt.Errorf("failed to marshal message: %w", err)
